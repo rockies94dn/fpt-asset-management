@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:fragment="layout(title, breadcrumb, content, headExtra, scripts)">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:replace="${title}">FPT Asset Management</title>
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link th:href="@{/css/main.css}" rel="stylesheet">
+
+    <th:block th:replace="${headExtra}"></th:block>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+        <div class="brand-logo">
+            <i class="bi bi-cpu-fill"></i>
+        </div>
+        <div class="brand-text">
+            <span class="brand-name">FPT Asset</span>
+            <span class="brand-sub">Management System</span>
+        </div>
+    </div>
+
+    <nav class="sidebar-nav">
+        <div class="nav-section-label">Tổng quan</div>
+        <a th:href="@{/dashboard}" class="nav-link" th:classappend="${currentPage == 'dashboard'} ? 'active'">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard</span>
+        </a>
+
+        <div class="nav-section-label mt-3">Quản lý</div>
+        <a th:href="@{/assets}" class="nav-link" th:classappend="${currentPage == 'assets'} ? 'active'">
+            <i class="bi bi-pc-display"></i>
+            <span>Thiết bị</span>
+        </a>
+        <a th:href="@{/usages}" class="nav-link" th:classappend="${currentPage == 'usages'} ? 'active'">
+            <i class="bi bi-arrow-left-right"></i>
+            <span>Mượn / Trả</span>
+        </a>
+        <a th:href="@{/maintenance}" class="nav-link" th:classappend="${currentPage == 'maintenance'} ? 'active'">
+            <i class="bi bi-tools"></i>
+            <span>Bảo trì / Báo hỏng</span>
+        </a>
+
+        <div class="nav-section-label mt-3">Báo cáo</div>
+        <a th:href="@{/reports}" class="nav-link" th:classappend="${currentPage == 'reports'} ? 'active'">
+            <i class="bi bi-file-earmark-bar-graph"></i>
+            <span>Xuất báo cáo</span>
+        </a>
+
+        <div sec:authorize="hasRole('ADMIN')">
+            <div class="nav-section-label mt-3">Quản trị</div>
+            <a th:href="@{/admin/users}" class="nav-link" th:classappend="${currentPage == 'users'} ? 'active'">
+                <i class="bi bi-people"></i>
+                <span>Người dùng</span>
+            </a>
+            <a th:href="@{/admin/rooms}" class="nav-link" th:classappend="${currentPage == 'rooms'} ? 'active'">
+                <i class="bi bi-building"></i>
+                <span>Phòng học</span>
+            </a>
+        </div>
+    </nav>
+
+    <div class="sidebar-footer">
+        <div class="user-info">
+            <div class="user-avatar">
+                <i class="bi bi-person-fill"></i>
+            </div>
+            <div class="user-details">
+                <span class="user-name" sec:authentication="name">Username</span>
+                <span class="user-role" sec:authorize="hasRole('ADMIN')">Quản trị viên</span>
+                <span class="user-role" sec:authorize="hasRole('STAFF')">Nhân viên</span>
+            </div>
+        </div>
+        <a th:href="@{/auth/logout}" class="btn-logout" title="Đăng xuất">
+            <i class="bi bi-box-arrow-right"></i>
+        </a>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="main-content" id="mainContent">
+    <!-- Top Navbar -->
+    <nav class="top-navbar">
+        <button class="sidebar-toggle" id="sidebarToggle">
+            <i class="bi bi-list"></i>
+        </button>
+
+        <div class="navbar-breadcrumb">
+            <th:block th:replace="${breadcrumb}"></th:block>
+        </div>
+
+        <div class="navbar-actions">
+            <a th:href="@{/usages/checkin}" class="btn btn-sm btn-outline-primary me-2">
+                <i class="bi bi-qr-code-scan me-1"></i> Quét QR
+            </a>
+            <div class="notification-bell">
+                <i class="bi bi-bell"></i>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Alerts -->
+    <div class="alert-container px-4 pt-3">
+        <div th:if="${success}" class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>
+            <span th:text="${success}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <span th:text="${error}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <div th:if="${info}" class="alert alert-info alert-dismissible fade show" role="alert">
+            <i class="bi bi-info-circle-fill me-2"></i>
+            <span th:text="${info}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <div th:if="${warning}" class="alert alert-warning alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-circle-fill me-2"></i>
+            <span th:text="${warning}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    </div>
+
+    <!-- Page Content -->
+    <div class="page-content">
+        <th:block th:replace="${content}"></th:block>
+    </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- Custom JS -->
+<script th:src="@{/js/main.js}"></script>
+
+<th:block th:replace="${scripts}"></th:block>
+</body>
+</html>

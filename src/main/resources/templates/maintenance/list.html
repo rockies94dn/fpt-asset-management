@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+
+<th:block
+        th:replace="~{fragments/layout :: layout(~{::title}, ~{::breadcrumb}, ~{::content}, ~{::head-extra}, ~{::scripts})}">
+    <title th:fragment="title">Bảo trì / Báo hỏng</title>
+    <th:block th:fragment="head-extra"></th:block>
+    <th:block th:fragment="breadcrumb">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Bảo trì / Báo hỏng</li>
+            </ol>
+        </nav>
+    </th:block>
+
+    <th:block th:fragment="content" th:with="currentPage='maintenance'">
+        <div class="page-header">
+            <div class="page-title"><i class="bi bi-tools"></i> Bảo trì / Báo hỏng</div>
+            <a th:href="@{/maintenance/report}" class="btn btn-danger">
+                <i class="bi bi-exclamation-triangle me-1"></i> Báo hỏng
+            </a>
+        </div>
+
+        <div class="search-bar">
+            <form th:action="@{/maintenance}" method="get">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-6">
+                        <input type="text" name="keyword" class="form-control"
+                               placeholder="Tên thiết bị..." th:value="${keyword}">
+                    </div>
+                    <div class="col-md-4">
+                        <select name="status" class="form-select">
+                            <option value="">-- Tất cả --</option>
+                            <option th:each="s : ${statuses}" th:value="${s.name()}"
+                                    th:text="${s.displayName}"
+                                    th:selected="${s == selectedStatus}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="table-wrapper">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Thiết bị</th>
+                        <th>Loại yêu cầu</th>
+                        <th>Mô tả</th>
+                        <th>Độ ưu tiên</th>
+                        <th>Người báo</th>
+                        <th>Ngày báo</th>
+                        <th>Trạng thái</th>
+                        <th>Thao tác</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="req, stat : ${requests.content}">
+                        <td style="color:#9ca3af;" th:text="${stat.index + 1}"></td>
+                        <td>
+                            <div style="font-weight:600;font-size:14px;" th:text="${req.asset.name}"></div>
+                            <code style="background:#FFF3E0;color:#FF6B00;padding:2px 6px;border-radius:4px;font-size:11px;"
+                                  th:text="${req.asset.qaCode}"></code>
+                        </td>
+                        <td>
+                           <span class="badge rounded-pill"
+                                 th:classappend="${req.issueType == 'BROKEN' ? 'bg-danger' : (req.issueType == 'MAINTENANCE' ? 'bg-warning text-dark' : 'bg-info')}"
+                                 style="font-size:11px;"
+                                 th:text="${req.issueTypeDisplayName}"></span>
+                        </td>
+                        <td style="font-size:13px;max-width:200px;">
+                            <span th:text="${#strings.abbreviate(req.description, 60)}"></span>
+                        </td>
+                        <td>
+                            <span th:class="'badge rounded-pill bg-' + ${req.priorityBadgeClass}"
+                                  th:text="${req.priorityDisplayName}" style="font-size:11px;"></span>
+                        </td>
+                        <td style="font-size:13px;" th:text="${req.reportedBy.fullName}"></td>
+                        <td style="font-size:12px;color:#6b7280;"
+                            th:text="${#temporals.format(req.reportedAt, 'dd/MM/yyyy HH:mm')}"></td>
+                        <td>
+                            <span th:class="'badge-status badge-' + ${req.status.name().toLowerCase()}"
+                                  th:text="${req.status.displayName}"></span>
+                        </td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                <button type="button" class="btn btn-sm btn-success py-1 px-2"
+                                        th:if="${req.status.name() == 'PENDING' || req.status.name() == 'IN_PROGRESS'}"
+                                        th:onclick="'resolveRequest(' + ${req.id} + ')'">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>
+                                <form th:action="@{/maintenance/{id}/status(id=${req.id})}" method="post"
+                                      style="display:inline;">
+                                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                                    <input type="hidden" name="status" value="IN_PROGRESS"/>
+                                    <button type="submit" class="btn btn-sm btn-warning py-1 px-2"
+                                            th:if="${req.status.name() == 'PENDING'}" title="Xử lý">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr th:if="${requests.isEmpty()}">
+                        <td colspan="9">
+                            <div class="empty-state">
+                                <div class="empty-state-icon"><i class="bi bi-tools"></i></div>
+                                <div class="empty-state-text">Không có yêu cầu nào</div>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </th:block>
+
+    <th:block th:fragment="scripts">
+        <!-- Resolve Modal -->
+        <div class="modal fade" id="resolveModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="border-radius:16px;">
+                    <div class="modal-header" style="background:#FFF3E0;border-bottom:1px solid rgba(255,107,0,0.2);">
+                        <h5 class="modal-title" style="color:#FF6B00;font-weight:700;">
+                            <i class="bi bi-check-circle me-2"></i> Giải quyết yêu cầu
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form id="resolveForm" method="post">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        <div class="modal-body p-4">
+                            <div class="mb-3">
+                                <label class="form-label">Ghi chú giải quyết <span class="text-danger">*</span></label>
+                                <textarea name="resolutionNote" class="form-control" rows="4"
+                                          placeholder="Mô tả cách giải quyết..." required></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-lg me-1"></i> Xác nhận giải quyết
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <script>
+            function resolveRequest(id) {
+                document.getElementById('resolveForm').action = '/maintenance/' + id + '/resolve';
+                new bootstrap.Modal(document.getElementById('resolveModal')).show();
+            }
+        </script>
+    </th:block>
+</th:block>
+</html>
