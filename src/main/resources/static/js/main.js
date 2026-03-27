@@ -19,11 +19,20 @@ if (sidebarToggle) {
 }
 
 // Close sidebar on overlay click (mobile)
+// document.addEventListener('click', (e) => {
+//     if (window.innerWidth <= 768 &&
+//         sidebar && sidebar.classList.contains('show') &&
+//         !sidebar.contains(e.target) &&
+//         e.target !== sidebarToggle) {
+//         sidebar.classList.remove('show');
+//     }
+// });
+
 document.addEventListener('click', (e) => {
     if (window.innerWidth <= 768 &&
         sidebar && sidebar.classList.contains('show') &&
         !sidebar.contains(e.target) &&
-        e.target !== sidebarToggle) {
+        !sidebarToggle.contains(e.target)) { // Thay e.target !== sidebarToggle thành !sidebarToggle.contains(e.target)
         sidebar.classList.remove('show');
     }
 });

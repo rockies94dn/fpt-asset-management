@@ -43,21 +43,38 @@ body {
 }
 
 /* ============ SIDEBAR ============ */
+
 .sidebar {
     width: var(--sidebar-width);
     background: var(--sidebar-bg);
     position: fixed;
-    top: 0; left: 0;
-    height: 100vh;
+    top: 0; left: 0; bottom: 0; /* Thêm bottom: 0 để neo chặt xuống đáy */
+    height: 100dvh; /* Thay 100vh bằng 100dvh (Dynamic Viewport Height) để fix lỗi thanh điều hướng mobile */
     display: flex;
     flex-direction: column;
-    z-index: 1000;
+    z-index: 1040; /* Tăng z-index để chắc chắn đè lên toàn bộ các thành phần khác */
     transition: transform 0.3s ease;
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.1) transparent;
 }
+/*.sidebar {*/
+/*    width: var(--sidebar-width);*/
+/*    background: var(--sidebar-bg);*/
+/*    position: fixed;*/
+/*    top: 0; left: 0;*/
+/*    height: 100vh;*/
+/*    display: flex;*/
+/*    flex-direction: column;*/
+/*    z-index: 1000;*/
+/*    transition: transform 0.3s ease;*/
+/*    overflow-y: auto;*/
+/*    overflow-x: hidden;*/
+/*    scrollbar-width: thin;*/
+/*    scrollbar-color: rgba(255,255,255,0.1) transparent;*/
+/*}*/
+
 
 .sidebar-brand {
     display: flex;
@@ -188,13 +205,29 @@ body {
 .sidebar-toggle {
     background: none;
     border: none;
-    font-size: 22px;
+    font-size: 26px; /* Tăng size icon lên một chút */
     color: var(--gray-600);
     cursor: pointer;
-    padding: 6px;
+    padding: 10px; /* Tăng padding */
+    min-width: 48px; /* Đảm bảo kích thước điểm chạm chuẩn (48x48px) cho mobile */
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     border-radius: 8px;
     transition: all 0.2s;
 }
+
+/*.sidebar-toggle {*/
+/*    background: none;*/
+/*    border: none;*/
+/*    font-size: 22px;*/
+/*    color: var(--gray-600);*/
+/*    cursor: pointer;*/
+/*    padding: 6px;*/
+/*    border-radius: 8px;*/
+/*    transition: all 0.2s;*/
+/*}*/
 .sidebar-toggle:hover { background: var(--gray-100); color: var(--primary); }
 
 .navbar-breadcrumb { flex: 1; }
@@ -760,5 +793,15 @@ body {
         background:
                 linear-gradient(135deg, rgba(14, 14, 26, 0.78) 0%, rgba(5, 38, 78, 0.74) 100%),
                 url('/images/fpt-bg.jpg') center center / cover no-repeat fixed;
+    }
+}
+
+/* ============ SIDEBAR DESKTOP COLLAPSE ============ */
+@media (min-width: 769px) {
+    .sidebar.collapsed {
+        transform: translateX(-100%); /* Ẩn hẳn sidebar sang bên trái */
+    }
+    .main-content.expanded {
+        margin-left: 0; /* Nội dung chính mở rộng lấp đầy màn hình */
     }
 }
