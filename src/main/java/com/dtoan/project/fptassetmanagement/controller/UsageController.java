@@ -5,6 +5,7 @@ import com.dtoan.project.fptassetmanagement.enums.UsageStatus;
 import com.dtoan.project.fptassetmanagement.repository.*;
 import com.dtoan.project.fptassetmanagement.service.AssetService;
 import com.dtoan.project.fptassetmanagement.service.impl.AssetUsageService;
+import com.dtoan.project.fptassetmanagement.service.impl.RoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,6 +24,7 @@ public class UsageController {
     private final AssetService assetService;
     private final RoomRepository roomRepository;
     private final UserRepository userRepository;
+    private final RoomService roomService;
 
     @GetMapping("")
     public String list(@RequestParam(required = false) String keyword,
@@ -40,7 +42,7 @@ public class UsageController {
     @GetMapping("/checkin")
     public String checkInForm(@RequestParam(required = false) String qaCode, Model model) {
         model.addAttribute("qaCode", qaCode);
-        model.addAttribute("rooms", roomRepository.findByIsActiveTrueOrderByCodeAsc());
+        model.addAttribute("rooms", roomService.getAssignableRooms());
         if (qaCode != null && !qaCode.isBlank()) {
             assetService.findByQaCode(qaCode).ifPresent(a -> model.addAttribute("asset", a));
         }
@@ -58,6 +60,9 @@ public class UsageController {
                     .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thiết bị: " + qaCode));
             User user = userRepository.findByUsername(userDetails.getUsername())
                     .orElseThrow(() -> new RuntimeException("User not found"));
+            if (roomService.isStoreRoomId(roomToId)) {
+                throw new IllegalArgumentException("Không thể chuyển thiết bị vào kho bằng thao tác người dùng.");
+            }
             Room room = roomToId != null ? roomRepository.findById(roomToId).orElse(null) : null;
 
             usageService.checkIn(asset, user, room, purpose);
@@ -74,7 +79,10 @@ public class UsageController {
                            RedirectAttributes redirectAttributes) {
         try {
             usageService.checkOut(id, note);
-            redirectAttributes.addFlashAttribute("success", "Check-out thành công!");
+            redirectAttributes.addFlashAttribute(
+                    "success",
+                    "Check-out thành công! Thiết bị đã được trả về " + roomService.getOrCreateStoreRoom().getName() + "."
+            );
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
         }

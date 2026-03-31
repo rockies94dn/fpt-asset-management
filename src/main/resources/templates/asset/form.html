@@ -84,7 +84,16 @@
                                 </div>
 
                                 <!-- Room -->
-                                <div class="col-md-6">
+                                <div class="col-md-6" th:if="${asset.id == null}">
+                                    <label class="form-label">Vị trí mặc định</label>
+                                    <input type="text" class="form-control"
+                                           th:value="${storeRoom.code + ' - ' + storeRoom.name}"
+                                           readonly style="background:#f9fafb;">
+                                    <div class="form-text">
+                                        Thiết bị mới luôn được đưa vào kho mặc định khi tạo.
+                                    </div>
+                                </div>
+                                <div class="col-md-6" th:if="${asset.id != null and canEditRoom}">
                                     <label class="form-label">Vị trí (phòng)</label>
                                     <select name="roomId" class="form-select">
                                         <option value="">-- Chưa xác định --</option>
@@ -92,6 +101,15 @@
                                                 th:text="${r.code + ' - ' + r.name}"
                                                 th:selected="${asset.room != null && asset.room.id == r.id}"></option>
                                     </select>
+                                </div>
+                                <div class="col-md-6" th:if="${asset.id != null and !canEditRoom}">
+                                    <label class="form-label">Vị trí (phòng)</label>
+                                    <input type="text" class="form-control"
+                                           th:value="${asset.room != null ? asset.room.code + ' - ' + asset.room.name : 'Chưa xác định'}"
+                                           readonly style="background:#f9fafb;">
+                                    <div class="form-text">
+                                        Chỉ quản trị viên mới được thay đổi phòng của thiết bị.
+                                    </div>
                                 </div>
 
                                 <!-- Status -->
@@ -171,6 +189,8 @@
                             <strong>Mã QA</strong> sẽ được in lên QR Code dán vào thiết bị</div>
                         <div class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>
                             Chọn <strong>Tự động</strong> để hệ thống tạo mã duy nhất</div>
+                        <div class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>
+                            Thiết bị mới sẽ vào <strong th:text="${storeRoom != null ? storeRoom.name : 'Store Room'}"></strong></div>
                         <div class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>
                             Sau khi thêm, bạn có thể <strong>in QR Code</strong> từ trang chi tiết</div>
                         <div><i class="bi bi-check-circle text-success me-2"></i>

@@ -8,6 +8,7 @@ import com.dtoan.project.fptassetmanagement.repository.MaintenanceRequestReposit
 import com.dtoan.project.fptassetmanagement.repository.RoomRepository;
 import com.dtoan.project.fptassetmanagement.repository.UserRepository;
 import com.dtoan.project.fptassetmanagement.service.AssetService;
+import com.dtoan.project.fptassetmanagement.service.impl.RoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.http.*;
@@ -36,6 +37,7 @@ public class AssetController {
     private final RoomRepository roomRepository;
     private final UserRepository userRepository;
     private final MaintenanceRequestRepository maintenanceRequestRepository;
+    private final RoomService roomService;
 
     @GetMapping
     public String list(@RequestParam(required = false) String keyword,
@@ -66,7 +68,7 @@ public class AssetController {
     public String createForm(Model model) {
         model.addAttribute("asset", new Asset());
         model.addAttribute("categories", categoryRepository.findAllByOrderByNameAsc());
-        model.addAttribute("rooms", roomRepository.findByIsActiveTrueOrderByCodeAsc());
+        model.addAttribute("storeRoom", roomService.getOrCreateStoreRoom());
         model.addAttribute("statuses", AssetStatus.values());
         return "asset/form";
     }
@@ -74,13 +76,12 @@ public class AssetController {
     @PostMapping("/create")
     public String create(@ModelAttribute Asset asset,
                          @RequestParam(required = false) Long categoryId,
-                         @RequestParam(required = false) Long roomId,
                          @RequestParam(required = false, defaultValue = "false") boolean autoGenerateCode,
                          @AuthenticationPrincipal UserDetails userDetails,
                          RedirectAttributes redirectAttributes) {
         try {
             categoryRepository.findById(categoryId).ifPresent(asset::setCategory);
-            roomRepository.findById(roomId).ifPresent(asset::setRoom);
+            asset.setRoom(roomService.getOrCreateStoreRoom());
 
             if (autoGenerateCode || asset.getQaCode() == null || asset.getQaCode().isBlank()) {
                 String catCode = asset.getCategory() != null
@@ -91,7 +92,11 @@ public class AssetController {
 
             userRepository.findByUsername(userDetails.getUsername()).ifPresent(asset::setCreatedBy);
             Asset saved = assetService.save(asset);
-            redirectAttributes.addFlashAttribute("success", "Thêm thiết bị thành công! Mã QA: " + saved.getQaCode());
+            redirectAttributes.addFlashAttribute(
+                    "success",
+                    "Thêm thiết bị thành công! Mã QA: " + saved.getQaCode() + ". Thiết bị đã được đưa vào "
+                            + saved.getRoom().getName() + "."
+            );
             return "redirect:/assets/" + saved.getId();
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error", "Lỗi: " + e.getMessage());
@@ -134,13 +139,16 @@ public class AssetController {
     }
 
     @GetMapping("/{id}/edit")
-    public String editForm(@PathVariable Long id, Model model) {
+    public String editForm(@PathVariable Long id,
+                           @AuthenticationPrincipal UserDetails userDetails,
+                           Model model) {
         Asset asset = assetService.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy thiết bị"));
         model.addAttribute("asset", asset);
         model.addAttribute("categories", categoryRepository.findAllByOrderByNameAsc());
-        model.addAttribute("rooms", roomRepository.findByIsActiveTrueOrderByCodeAsc());
+        model.addAttribute("rooms", roomService.getAssignableRooms());
         model.addAttribute("statuses", AssetStatus.values());
+        model.addAttribute("canEditRoom", isAdmin(userDetails));
         return "asset/form";
     }
 
@@ -148,6 +156,7 @@ public class AssetController {
     public String update(@PathVariable Long id, @ModelAttribute Asset assetForm,
                          @RequestParam(required = false) Long categoryId,
                          @RequestParam(required = false) Long roomId,
+                         @AuthenticationPrincipal UserDetails userDetails,
                          RedirectAttributes redirectAttributes) {
         Asset asset = assetService.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy thiết bị"));
@@ -163,7 +172,13 @@ public class AssetController {
         asset.setDescription(assetForm.getDescription());
 
         categoryRepository.findById(categoryId).ifPresent(asset::setCategory);
-        roomRepository.findById(roomId).ifPresent(asset::setRoom);
+        if (isAdmin(userDetails)) {
+            if (roomService.isStoreRoomId(roomId)) {
+                redirectAttributes.addFlashAttribute("error", "Không thể gán thủ công thiết bị vào kho.");
+                return "redirect:/assets/" + id + "/edit";
+            }
+            roomRepository.findById(roomId).ifPresent(asset::setRoom);
+        }
 
         assetService.save(asset);
         redirectAttributes.addFlashAttribute("success", "Cập nhật thiết bị thành công!");
@@ -233,5 +248,15 @@ public class AssetController {
 
         model.addAttribute("openMaintenanceCounts", openMaintenanceCounts);
         model.addAttribute("overdueMaintenanceAssetIds", overdueMaintenanceAssetIds);
+    }
+
+    private boolean isAdmin(UserDetails userDetails) {
+        if (userDetails == null) {
+            return false;
+        }
+
+        return userRepository.findByUsername(userDetails.getUsername())
+                .map(user -> user.getRole() != null && "ADMIN".equals(user.getRole().getName()))
+                .orElse(false);
     }
 }

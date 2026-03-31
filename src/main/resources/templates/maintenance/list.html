@@ -93,7 +93,7 @@
                         <td>
                             <div class="d-flex gap-1">
                                 <button type="button" class="btn btn-sm btn-success py-1 px-2"
-                                        th:if="${req.status.name() == 'PENDING' || req.status.name() == 'IN_PROGRESS'}"
+                                        th:if="${canResolveMaintenance and (req.status.name() == 'PENDING' || req.status.name() == 'IN_PROGRESS')}"
                                         th:onclick="'resolveRequest(' + ${req.id} + ')'">
                                     <i class="bi bi-check-lg"></i>
                                 </button>
@@ -120,6 +120,11 @@
                     </tbody>
                 </table>
             </div>
+        </div>
+
+        <div th:if="${!canResolveMaintenance}" class="alert alert-info mt-3 mb-0">
+            <i class="bi bi-info-circle me-2"></i>
+            Chỉ người dùng có quyền <strong>ADMIN</strong> hoặc <strong>MAINTENANCE</strong> mới được xác nhận sản phẩm đã sửa.
         </div>
     </th:block>
 

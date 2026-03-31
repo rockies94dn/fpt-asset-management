@@ -26,12 +26,14 @@ public class MaintenanceController {
     public String list(@RequestParam(required = false) String keyword,
                        @RequestParam(required = false) MaintenanceStatus status,
                        @RequestParam(defaultValue = "0") int page,
+                       @AuthenticationPrincipal UserDetails userDetails,
                        Model model) {
         Pageable pageable = PageRequest.of(page, 15);
         model.addAttribute("requests", maintenanceService.searchRequests(keyword, status, pageable));
         model.addAttribute("statuses", MaintenanceStatus.values());
         model.addAttribute("keyword", keyword);
         model.addAttribute("selectedStatus", status);
+        model.addAttribute("canResolveMaintenance", canResolveMaintenance(userDetails));
         return "maintenance/list";
     }
 
@@ -69,6 +71,11 @@ public class MaintenanceController {
                           @AuthenticationPrincipal UserDetails userDetails,
                           RedirectAttributes redirectAttributes) {
         try {
+            if (!canResolveMaintenance(userDetails)) {
+                redirectAttributes.addFlashAttribute("error", "Chỉ quản trị viên hoặc nhân viên bảo trì mới được xác nhận sản phẩm đã sửa.");
+                return "redirect:/maintenance";
+            }
+
             User resolver = userRepository.findByUsername(userDetails.getUsername()).orElseThrow();
             maintenanceService.resolve(id, resolutionNote, resolver);
             redirectAttributes.addFlashAttribute("success", "Đã giải quyết yêu cầu!");
@@ -85,5 +92,19 @@ public class MaintenanceController {
         maintenanceService.updateStatus(id, status);
         redirectAttributes.addFlashAttribute("success", "Đã cập nhật trạng thái!");
         return "redirect:/maintenance";
+    }
+
+    private boolean hasRole(UserDetails userDetails, String roleName) {
+        if (userDetails == null) {
+            return false;
+        }
+
+        return userRepository.findByUsername(userDetails.getUsername())
+                .map(user -> user.getRole() != null && roleName.equals(user.getRole().getName()))
+                .orElse(false);
+    }
+
+    private boolean canResolveMaintenance(UserDetails userDetails) {
+        return hasRole(userDetails, "ADMIN") || hasRole(userDetails, "MAINTENANCE");
     }
 }
