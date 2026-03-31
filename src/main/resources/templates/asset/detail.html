@@ -33,10 +33,8 @@
         </div>
 
         <div class="row g-3">
-            <!-- Left: Asset Info -->
             <div class="col-lg-8">
 
-                <!-- Status Banner -->
                 <div class="mb-3 p-3 rounded-3 d-flex align-items-center gap-3"
                      th:style="'background:' + ${asset.status.name() == 'AVAILABLE' ? 'rgba(16,185,129,0.08)' :
                             asset.status.name() == 'IN_USE' ? 'rgba(59,130,246,0.08)' :
@@ -57,7 +55,6 @@
                     </div>
                 </div>
 
-                <!-- Info Card -->
                 <div class="card mb-3">
                     <div class="card-header">
                         <span class="card-title"><i class="bi bi-clipboard-data"></i> Thông tin thiết bị</span>
@@ -135,7 +132,6 @@
                     </div>
                 </div>
 
-                <!-- Quick actions -->
                 <div class="row g-2">
                     <div class="col-sm-4" th:if="${asset.status.name() == 'AVAILABLE'}">
                         <a th:href="@{'/usages/checkin?qaCode=' + ${asset.qaCode}}"
@@ -158,7 +154,6 @@
                 </div>
             </div>
 
-            <!-- Right: QR Code -->
             <div class="col-lg-4">
                 <div class="card text-center mb-3">
                     <div class="card-header">
@@ -178,7 +173,9 @@
                         <div class="d-flex gap-2 justify-content-center mt-3">
                             <button class="btn btn-outline-primary btn-sm"
                                     th:if="${qrBase64 != null}"
-                                    th:onclick="'printQR(\'' + ${asset.qaCode} + '\', \'' + ${qrBase64} + '\')'">
+                                    th:data-qacode="${asset.qaCode}"
+                                    th:data-qr="${qrBase64}"
+                                    onclick="printQR(this.getAttribute('data-qacode'), this.getAttribute('data-qr'))">
                                 <i class="bi bi-printer me-1"></i> In QR
                             </button>
                             <a th:href="@{'/assets/' + ${asset.id} + '/qr/download'}"
@@ -186,17 +183,25 @@
                                 <i class="bi bi-download me-1"></i> Tải xuống
                             </a>
                         </div>
+
+<!--                        <div class="mt-2">-->
+<!--                            <a th:href="@{'/assets/' + ${asset.id} + '/export-pdf'}"-->
+<!--                               class="btn btn-outline-danger btn-sm w-100">-->
+<!--                                <i class="bi bi-file-earmark-pdf me-1"></i> Xuất PDF-->
+<!--                            </a>-->
+<!--                        </div>-->
+
                     </div>
                 </div>
 
-                <!-- Copy QA Code -->
                 <div class="card">
                     <div class="card-body text-center">
                         <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">Mã QA</div>
                         <div style="background:#FFF3E0;border-radius:8px;padding:10px;display:flex;align-items:center;justify-content:space-between;">
                             <code style="color:#FF6B00;font-size:15px;font-weight:600;" th:text="${asset.qaCode}"></code>
                             <button class="btn btn-sm btn-link p-0 ms-2"
-                                    th:onclick="'copyToClipboard(\'' + ${asset.qaCode} + '\')'">
+                                    th:data-qacode="${asset.qaCode}"
+                                    onclick="copyToClipboard(this.getAttribute('data-qacode'))">
                                 <i class="bi bi-clipboard" style="color:#FF6B00;font-size:16px;"></i>
                             </button>
                         </div>

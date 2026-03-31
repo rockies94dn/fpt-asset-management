@@ -186,12 +186,26 @@
                         <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">
                             Xóa thiết bị này? Hành động này không thể hoàn tác.
                         </p>
+<!--                        <form th:action="@{'/assets/' + ${asset.id} + '/delete'}" method="post">-->
+<!--                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>-->
+<!--                            <div th:if="${asset.getStatus() == 'IN_USE'}"></div>-->
+<!--                            <button type="submit" class="btn btn-danger btn-sm w-100"-->
+<!--                                    onclick="return confirm('Bạn chắc chắn muốn xóa thiết bị này?')">-->
+<!--                                <i class="bi bi-trash me-1"></i> Xóa thiết bị-->
+<!--                            </button>-->
+<!--                        </form>-->
                         <form th:action="@{'/assets/' + ${asset.id} + '/delete'}" method="post">
                             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
                             <button type="submit" class="btn btn-danger btn-sm w-100"
+                                    th:disabled="${asset.status.name() == 'IN_USE'}"
                                     onclick="return confirm('Bạn chắc chắn muốn xóa thiết bị này?')">
                                 <i class="bi bi-trash me-1"></i> Xóa thiết bị
                             </button>
+
+                            <div th:if="${asset.status.name() == 'IN_USE'}" class="text-danger mt-2" style="font-size: 0.85rem; text-align: center;">
+                                * Sản phẩm đang sử dụng không thể xoá, hãy thu hồi trước.
+                            </div>
                         </form>
                     </div>
                 </div>

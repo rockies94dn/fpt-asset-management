@@ -91,6 +91,7 @@ public class AssetController {
         model.addAttribute("asset", asset);
         try {
             String qrBase64 = assetService.generateQRCode(asset.getQaCode());
+            System.out.println(qrBase64);
             model.addAttribute("qrBase64", qrBase64);
         } catch (Exception e) {
             model.addAttribute("qrError", "Không thể tạo QR code");
