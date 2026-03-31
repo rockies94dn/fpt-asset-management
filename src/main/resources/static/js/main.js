@@ -155,3 +155,7 @@ window.initDashboardCharts = function(available, inUse, broken, maintenance) {
         }
     });
 };
+
+document.querySelectorAll('.notification-redirect-target').forEach(input => {
+    input.value = window.location.pathname + window.location.search;
+});

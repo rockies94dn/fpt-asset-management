@@ -2,6 +2,7 @@ package com.dtoan.project.fptassetmanagement.service.impl;
 
 import com.dtoan.project.fptassetmanagement.entity.Asset;
 import com.dtoan.project.fptassetmanagement.enums.AssetStatus;
+import com.dtoan.project.fptassetmanagement.enums.MaintenanceStatus;
 import com.dtoan.project.fptassetmanagement.repository.AssetRepository;
 import com.dtoan.project.fptassetmanagement.service.AssetService;
 import com.dtoan.project.fptassetmanagement.util.QRCodeUtil;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -20,14 +22,26 @@ import java.util.Optional;
 @Transactional
 public class AssetServiceImpl implements AssetService {
 
+    private static final List<MaintenanceStatus> OPEN_MAINTENANCE_STATUSES =
+            List.of(MaintenanceStatus.PENDING, MaintenanceStatus.IN_PROGRESS);
+
     private final AssetRepository assetRepository;
     private final QRCodeUtil qrCodeUtil;
 
     @Override
     @Transactional(readOnly = true)
-    public Page<Asset> searchAssets(String keyword, AssetStatus status, Long categoryId, Long roomId, Pageable pageable) {
+    public Page<Asset> searchAssets(String keyword, AssetStatus status, Long categoryId, Long roomId,
+                                    boolean attentionOnly, Pageable pageable) {
         String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
-        return assetRepository.searchAssets(kw, status, categoryId, roomId, pageable);
+        return assetRepository.searchAssets(
+                kw,
+                status,
+                categoryId,
+                roomId,
+                attentionOnly,
+                OPEN_MAINTENANCE_STATUSES,
+                pageable
+        );
     }
 
     @Override

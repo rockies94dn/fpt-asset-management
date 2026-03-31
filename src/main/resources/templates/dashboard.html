@@ -161,8 +161,19 @@
                                     <i class="bi bi-tools"></i>
                                 </div>
                                 <div>
-                                    <div style="font-weight:600;font-size:14px;color:#991B1B;">Yêu cầu chờ xử lý</div>
-                                    <div style="font-size:22px;font-weight:700;color:#EF4444;" th:text="${pendingMaintenance}">0</div>
+                                    <div style="font-weight:600;font-size:14px;color:#991B1B;">Yêu cầu đang mở</div>
+                                    <div style="font-size:22px;font-weight:700;color:#EF4444;" th:text="${openMaintenanceRequests}">0</div>
+                                </div>
+                            </div>
+                            <div class="alert-item mb-3" style="background:#FFF7ED;border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+                                <div style="width:40px;height:40px;background:rgba(249,115,22,0.12);border-radius:10px;
+                             display:flex;align-items:center;justify-content:center;color:#F97316;font-size:18px;flex-shrink:0;">
+                                    <i class="bi bi-hourglass-split"></i>
+                                </div>
+                                <div>
+                                    <div style="font-weight:600;font-size:14px;color:#9A3412;">Bảo trì quá hạn</div>
+                                    <div style="font-size:22px;font-weight:700;color:#F97316;" th:text="${overdueMaintenanceRequests}">0</div>
+                                    <div style="font-size:11px;color:#9A3412;">Quá <span th:text="${overdueMaintenanceDays}">7</span> ngày chưa xử lý</div>
                                 </div>
                             </div>
                             <div class="alert-item" style="background:#FFFBEB;border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
@@ -176,6 +187,64 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <span class="card-title"><i class="bi bi-exclamation-diamond"></i> Thiết bị cần chú ý</span>
+                    <a th:href="@{/assets(attentionOnly=true)}" class="btn btn-sm btn-outline-primary">Lọc thiết bị</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                            <tr>
+                                <th>Mã QA</th>
+                                <th>Tên thiết bị</th>
+                                <th>Cảnh báo</th>
+                                <th>Phòng</th>
+                                <th>Trạng thái</th>
+                                <th></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="asset : ${attentionAssets}">
+                                <td>
+                                    <code style="background:#FFF3E0;color:#FF6B00;padding:3px 8px;border-radius:5px;font-size:12px;"
+                                          th:text="${asset.qaCode}"></code>
+                                </td>
+                                <td>
+                                    <div style="font-weight:600;" th:text="${asset.name}"></div>
+                                    <div style="font-size:12px;color:#6b7280;" th:text="${asset.category != null ? asset.category.name : 'Chưa phân loại'}"></div>
+                                </td>
+                                <td>
+                                    <span class="badge rounded-pill text-bg-danger">Có yêu cầu bảo trì mở</span>
+                                </td>
+                                <td th:text="${asset.room != null ? asset.room.name : '-'}" style="font-size:13px;color:#6b7280;"></td>
+                                <td>
+                                    <span th:class="'badge-status badge-' + ${asset.status.name().toLowerCase()}">
+                                        <span th:text="${asset.status.displayName}"></span>
+                                    </span>
+                                </td>
+                                <td>
+                                    <a th:href="@{'/assets/' + ${asset.id}}"
+                                       class="btn btn-sm btn-outline-primary py-1 px-2">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            <tr th:if="${#lists.isEmpty(attentionAssets)}">
+                                <td colspan="6">
+                                    <div class="empty-state">
+                                        <div class="empty-state-icon"><i class="bi bi-shield-check"></i></div>
+                                        <div class="empty-state-text">Hiện chưa có thiết bị nào cần cảnh báo</div>
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

@@ -248,8 +248,159 @@ body {
     color: var(--gray-600);
     cursor: pointer;
     transition: all 0.2s;
+    position: relative;
 }
 .notification-bell:hover { background: var(--primary-ultra-light); color: var(--primary); }
+.notification-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--danger);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    box-shadow: 0 2px 8px rgba(239,68,68,0.35);
+}
+.notification-menu {
+    width: min(380px, calc(100vw - 24px));
+    border: 1px solid var(--gray-200);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+    margin-top: 10px !important;
+}
+.notification-menu-header {
+    padding: 16px 18px 14px;
+    background: linear-gradient(135deg, #fff7ed, #ffffff);
+    border-bottom: 1px solid var(--gray-200);
+}
+.notification-menu-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--gray-800);
+}
+.notification-menu-subtitle {
+    font-size: 12px;
+    color: var(--gray-600);
+    margin-top: 3px;
+}
+.notification-list {
+    max-height: 420px;
+    overflow-y: auto;
+    background: white;
+}
+.notification-item {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--gray-100);
+    transition: background 0.18s ease;
+}
+.notification-item:last-child { border-bottom: none; }
+.notification-item:hover {
+    background: var(--primary-ultra-light);
+}
+.notification-item.is-read { opacity: 0.72; }
+.notification-item.is-unread {
+    background: linear-gradient(90deg, rgba(255,107,0,0.06), rgba(255,255,255,0));
+}
+.notification-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 18px;
+}
+.notification-copy {
+    min-width: 0;
+    flex: 1;
+}
+.notification-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.notification-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--gray-800);
+}
+.notification-count {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--primary);
+    background: rgba(255,107,0,0.1);
+    border-radius: 999px;
+    padding: 2px 8px;
+}
+.notification-message {
+    font-size: 12px;
+    color: var(--gray-600);
+    margin-top: 4px;
+    line-height: 1.5;
+}
+.notification-meta {
+    font-size: 11px;
+    color: #9ca3af;
+    margin-top: 6px;
+}
+.notification-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 12px;
+    margin-top: 10px;
+}
+.notification-actions form {
+    display: inline-flex;
+    margin: 0;
+}
+.notification-link-btn {
+    display: inline-flex;
+    align-items: center;
+    border: none;
+    background: none;
+    padding: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--primary);
+    text-decoration: none;
+    white-space: nowrap;
+}
+.notification-link-btn:hover {
+    color: var(--primary-dark);
+    text-decoration: underline;
+}
+.notification-empty {
+    padding: 32px 20px;
+    text-align: center;
+    background: white;
+    color: var(--gray-600);
+    font-size: 13px;
+}
+.notification-empty i {
+    display: block;
+    font-size: 32px;
+    color: var(--gray-200);
+    margin-bottom: 10px;
+}
+.notification-icon.tone-danger { background: rgba(239,68,68,0.12); color: var(--danger); }
+.notification-icon.tone-warning { background: rgba(245,158,11,0.12); color: var(--warning); }
+.notification-icon.tone-info { background: rgba(59,130,246,0.12); color: var(--info); }
+.notification-icon.tone-primary { background: rgba(255,107,0,0.12); color: var(--primary); }
+.notification-icon.tone-success { background: rgba(16,185,129,0.12); color: var(--success); }
 
 /* ============ PAGE CONTENT ============ */
 .page-content { flex: 1; padding: 24px; }
@@ -731,6 +882,14 @@ body {
     }
     .page-content { padding: 16px; }
     .stat-value { font-size: 24px; }
+    .notification-menu {
+        position: fixed !important;
+        top: 72px !important;
+        right: 12px !important;
+        left: 12px !important;
+        width: auto;
+        transform: none !important;
+    }
 }
 
 /* ============ UTILITIES ============ */
