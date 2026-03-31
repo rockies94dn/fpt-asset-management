@@ -41,15 +41,21 @@
                             &bull; Tầng <span th:text="${room.floor}"></span>
                         </span>
                         </div>
+                        <div th:if="${room.code == 'STORE'}" class="mt-2">
+                            <span class="badge rounded-pill bg-secondary">Phòng hệ thống</span>
+                        </div>
                     </div>
                     <div class="card-body pt-0">
-                        <form th:action="@{'/admin/rooms/' + ${room.id} + '/delete'}" method="post">
+                        <form th:if="${room.code != 'STORE'}" th:action="@{'/admin/rooms/' + ${room.id} + '/delete'}" method="post">
                             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
                             <button type="submit" class="btn btn-outline-danger btn-sm w-100"
                                     onclick="return confirm('Xóa phòng này?')">
                                 <i class="bi bi-trash me-1"></i> Xóa
                             </button>
                         </form>
+                        <div th:if="${room.code == 'STORE'}" class="text-muted small">
+                            Store Room chỉ được hệ thống sử dụng khi tạo mới hoặc checkout.
+                        </div>
                     </div>
                 </div>
             </div>

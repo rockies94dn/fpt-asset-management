@@ -81,6 +81,7 @@
                 <span class="user-name" sec:authentication="name">Username</span>
                 <span class="user-role" sec:authorize="hasRole('ADMIN')">Quản trị viên</span>
                 <span class="user-role" sec:authorize="hasRole('STAFF')">Nhân viên</span>
+                <span class="user-role" sec:authorize="hasRole('MAINTENANCE')">Nhân viên bảo trì</span>
             </div>
         </div>
         <a th:href="@{/auth/logout}" class="btn-logout" title="Đăng xuất">

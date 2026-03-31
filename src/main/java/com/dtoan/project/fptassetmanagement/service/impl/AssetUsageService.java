@@ -58,10 +58,9 @@ public class AssetUsageService {
 
         Asset asset = usage.getAsset();
         asset.setStatus(AssetStatus.AVAILABLE);
+        Room storeRoom = roomService.getOrCreateStoreRoom();
+        asset.setRoom(storeRoom);
         assetRepository.save(asset);
-
-        //Trả về phòng thiết bị
-        usage.getAsset().setRoom(roomService.getRoomByCode("TB"));
 
         return usageRepository.save(usage);
     }
