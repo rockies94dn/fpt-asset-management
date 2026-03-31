@@ -21,7 +21,9 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy tài khoản: " + username));
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
-            throw new UsernameNotFoundException("Tài khoản đã bị vô hiệu hóa");
+            throw new UsernameNotFoundException(Boolean.FALSE.equals(user.getEmailVerified())
+                    ? "Tài khoản chưa xác minh email"
+                    : "Tài khoản đã bị vô hiệu hóa");
         }
 
         return new org.springframework.security.core.userdetails.User(

@@ -8,7 +8,8 @@ import org.springframework.data.domain.Pageable;
 import java.util.Optional;
 
 public interface AssetService {
-    Page<Asset> searchAssets(String keyword, AssetStatus status, Long categoryId, Long roomId, Pageable pageable);
+    Page<Asset> searchAssets(String keyword, AssetStatus status, Long categoryId, Long roomId,
+                             boolean attentionOnly, Pageable pageable);
     Optional<Asset> findById(Long id);
     Optional<Asset> findByQaCode(String qaCode);
     Asset save(Asset asset);

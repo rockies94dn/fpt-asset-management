@@ -44,6 +44,22 @@ public class User {
     @Builder.Default
     private Boolean isActive = true;
 
+    @Column(name = "email_verified")
+    @Builder.Default
+    private Boolean emailVerified = true;
+
+    @Column(name = "email_verification_token", length = 120, unique = true)
+    private String emailVerificationToken;
+
+    @Column(name = "email_verification_expiry")
+    private LocalDateTime emailVerificationExpiry;
+
+    @Column(name = "password_reset_token", length = 120, unique = true)
+    private String passwordResetToken;
+
+    @Column(name = "password_reset_expiry")
+    private LocalDateTime passwordResetExpiry;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

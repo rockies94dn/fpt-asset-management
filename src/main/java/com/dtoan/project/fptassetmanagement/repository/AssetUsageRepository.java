@@ -29,5 +29,9 @@ public interface AssetUsageRepository extends JpaRepository<AssetUsage, Long> {
     @Query("SELECT u FROM AssetUsage u WHERE u.asset.id = :assetId ORDER BY u.checkInTime DESC")
     List<AssetUsage> findByAssetIdOrderByCheckInTimeDesc(@Param("assetId") Long assetId);
 
+    List<AssetUsage> findTop10ByOrderByCheckInTimeDesc();
+
+    List<AssetUsage> findTop10ByCheckOutTimeIsNotNullOrderByCheckOutTimeDesc();
+
     long countByStatus(UsageStatus status);
 }

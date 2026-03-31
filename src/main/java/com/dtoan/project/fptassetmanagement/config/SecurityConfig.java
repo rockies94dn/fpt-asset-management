@@ -56,7 +56,13 @@ public class SecurityConfig {
                         .loginPage("/auth/login")
                         .loginProcessingUrl("/auth/login")
                         .defaultSuccessUrl("/dashboard", true)
-                        .failureUrl("/auth/login?error=true")
+                        .failureHandler((request, response, exception) -> {
+                            String errorCode = exception.getMessage() != null
+                                    && exception.getMessage().contains("xác minh email")
+                                    ? "verify"
+                                    : "true";
+                            response.sendRedirect("/auth/login?error=" + errorCode);
+                        })
                         .usernameParameter("username")
                         .passwordParameter("password")
                         .permitAll()
