@@ -76,6 +76,22 @@ public class AssetUsageService {
         return usageRepository.findByAssetIdAndStatus(assetId, UsageStatus.ACTIVE);
     }
 
+    public Optional<AssetUsage> closeActiveUsageForLostAsset(Asset asset) {
+        Optional<AssetUsage> activeUsage = usageRepository.findByAssetIdAndStatus(asset.getId(), UsageStatus.ACTIVE);
+        activeUsage.ifPresent(usage -> {
+            usage.setCheckOutTime(LocalDateTime.now());
+            usage.setStatus(UsageStatus.CANCELLED);
+            String systemNote = "Phiếu sử dụng được đóng do thiết bị được đánh dấu thất lạc.";
+            if (usage.getNote() == null || usage.getNote().isBlank()) {
+                usage.setNote(systemNote);
+            } else {
+                usage.setNote(usage.getNote() + System.lineSeparator() + systemNote);
+            }
+            usageRepository.save(usage);
+        });
+        return activeUsage;
+    }
+
     @Transactional(readOnly = true)
     public Optional<AssetUsage> findById(Long id) {
         return usageRepository.findById(id);

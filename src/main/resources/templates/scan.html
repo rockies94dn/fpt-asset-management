@@ -18,6 +18,7 @@
         .in_use    { background: rgba(59,130,246,0.12);  color: #3B82F6; }
         .broken    { background: rgba(239,68,68,0.12);   color: #EF4444; }
         .maintenance { background: rgba(245,158,11,0.12); color: #F59E0B; }
+        .lost { background: rgba(100,116,139,0.12); color: #475569; }
         .info-row { display: flex; justify-content: space-between; padding: 11px 0;
             border-bottom: 1px solid #f3f4f6; font-size: 14px; }
         .info-row:last-child { border-bottom: none; }
@@ -74,6 +75,9 @@
         <span class="info-label">Hết bảo hành</span>
         <span class="info-value" th:text="${#temporals.format(asset.warrantyExpiry, 'dd/MM/yyyy')}"></span>
     </div>
+    <div class="alert alert-warning mt-3 mb-0" th:if="${asset.status.name() == 'LOST'}">
+        Thiết bị này đang được ghi nhận thất lạc. Vui lòng liên hệ quản trị viên nếu bạn vừa tìm thấy nó.
+    </div>
 </div>
 
 <!-- Actions -->
@@ -85,6 +89,7 @@
             <i class="bi bi-box-arrow-in-right me-2"></i> Check-in thiết bị này
         </a>
         <a th:href="@{'/maintenance/report?qaCode=' + ${asset.qaCode}}"
+           th:if="${asset.status.name() != 'LOST'}"
            class="btn btn-outline-danger w-100 py-3" style="border-radius:14px;font-weight:600;font-size:15px;">
             <i class="bi bi-tools me-2"></i> Báo hỏng / Bảo trì
         </a>

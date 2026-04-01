@@ -587,6 +587,7 @@ body {
 .badge-in_use    { background: rgba(59,130,246,0.12);  color: var(--info); }
 .badge-broken    { background: rgba(239,68,68,0.12);   color: var(--danger); }
 .badge-maintenance { background: rgba(245,158,11,0.12); color: var(--warning); }
+.badge-lost      { background: rgba(100,116,139,0.12); color: #475569; }
 .badge-pending   { background: rgba(245,158,11,0.12); color: var(--warning); }
 .badge-resolved  { background: rgba(16,185,129,0.12); color: var(--success); }
 

@@ -57,6 +57,7 @@
                         <th>Mô tả</th>
                         <th>Độ ưu tiên</th>
                         <th>Người báo</th>
+                        <th>Người phụ trách</th>
                         <th>Ngày báo</th>
                         <th>Trạng thái</th>
                         <th>Thao tác</th>
@@ -84,6 +85,9 @@
                                   th:text="${req.priorityDisplayName}" style="font-size:11px;"></span>
                         </td>
                         <td style="font-size:13px;" th:text="${req.reportedBy.fullName}"></td>
+                        <td style="font-size:13px;color:#6b7280;">
+                            <span th:text="${req.assignedTo != null ? req.assignedTo.fullName : 'Chưa phân công'}"></span>
+                        </td>
                         <td style="font-size:12px;color:#6b7280;"
                             th:text="${#temporals.format(req.reportedAt, 'dd/MM/yyyy HH:mm')}"></td>
                         <td>
@@ -92,6 +96,14 @@
                         </td>
                         <td>
                             <div class="d-flex gap-1">
+                                <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2"
+                                        th:if="${canAssignMaintenance and req.status.name() != 'RESOLVED' and req.status.name() != 'CANCELLED'}"
+                                        th:data-requestid="${req.id}"
+                                        th:data-assigneeid="${req.assignedTo != null ? req.assignedTo.id : ''}"
+                                        onclick="assignRequest(this)"
+                                        th:title="${req.assignedTo != null ? 'Phân công lại' : 'Phân công'}">
+                                    <i class="bi bi-person-check"></i>
+                                </button>
                                 <button type="button" class="btn btn-sm btn-success py-1 px-2"
                                         th:if="${canResolveMaintenance and (req.status.name() == 'PENDING' || req.status.name() == 'IN_PROGRESS')}"
                                         th:onclick="'resolveRequest(' + ${req.id} + ')'">
@@ -102,7 +114,7 @@
                                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
                                     <input type="hidden" name="status" value="IN_PROGRESS"/>
                                     <button type="submit" class="btn btn-sm btn-warning py-1 px-2"
-                                            th:if="${req.status.name() == 'PENDING'}" title="Xử lý">
+                                            th:if="${canAssignMaintenance and req.status.name() == 'PENDING'}" title="Xử lý">
                                         <i class="bi bi-arrow-clockwise"></i>
                                     </button>
                                 </form>
@@ -110,7 +122,7 @@
                         </td>
                     </tr>
                     <tr th:if="${requests.isEmpty()}">
-                        <td colspan="9">
+                        <td colspan="10">
                             <div class="empty-state">
                                 <div class="empty-state-icon"><i class="bi bi-tools"></i></div>
                                 <div class="empty-state-text">Không có yêu cầu nào</div>
@@ -129,6 +141,34 @@
     </th:block>
 
     <th:block th:fragment="scripts">
+        <div class="modal fade" id="assignModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="border-radius:16px;">
+                    <div class="modal-header" style="border-bottom:1px solid #f3f4f6;">
+                        <h5 class="modal-title">
+                            <i class="bi bi-person-check me-2"></i>Phân công bảo trì
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form id="assignForm" method="post">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        <div class="modal-body">
+                            <label class="form-label">Nhân viên bảo trì</label>
+                            <select name="assigneeId" id="assignAssigneeId" class="form-select" required>
+                                <option value="">-- Chọn nhân viên --</option>
+                                <option th:each="user : ${maintenanceUsers}" th:value="${user.id}" th:text="${user.fullName}"></option>
+                            </select>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg me-1"></i> Lưu phân công
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
         <!-- Resolve Modal -->
         <div class="modal fade" id="resolveModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
@@ -159,6 +199,11 @@
             </div>
         </div>
         <script>
+            function assignRequest(button) {
+                document.getElementById('assignForm').action = '/maintenance/' + button.dataset.requestid + '/assign';
+                document.getElementById('assignAssigneeId').value = button.dataset.assigneeid || '';
+                new bootstrap.Modal(document.getElementById('assignModal')).show();
+            }
             function resolveRequest(id) {
                 document.getElementById('resolveForm').action = '/maintenance/' + id + '/resolve';
                 new bootstrap.Modal(document.getElementById('resolveModal')).show();

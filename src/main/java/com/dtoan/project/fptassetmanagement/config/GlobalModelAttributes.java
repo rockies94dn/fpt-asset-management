@@ -7,7 +7,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
-@ControllerAdvice
+@ControllerAdvice(basePackages = "com.dtoan.project.fptassetmanagement.controller")
 @RequiredArgsConstructor
 public class GlobalModelAttributes {
 

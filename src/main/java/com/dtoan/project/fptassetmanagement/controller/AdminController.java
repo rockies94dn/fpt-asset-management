@@ -4,9 +4,12 @@ import com.dtoan.project.fptassetmanagement.entity.Room;
 import com.dtoan.project.fptassetmanagement.entity.Role;
 import com.dtoan.project.fptassetmanagement.entity.User;
 import com.dtoan.project.fptassetmanagement.repository.*;
+import com.dtoan.project.fptassetmanagement.service.impl.AuditLogService;
 import com.dtoan.project.fptassetmanagement.service.impl.RoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -26,6 +29,7 @@ public class AdminController {
     private final RoomRepository roomRepository;
     private final PasswordEncoder passwordEncoder;
     private final RoomService roomService;
+    private final AuditLogService auditLogService;
 
     // ===== USERS =====
     @GetMapping("/users")
@@ -65,6 +69,7 @@ public class AdminController {
                            @RequestParam(required = false) String email,
                            @RequestParam(required = false) String phone,
                            @RequestParam Long roleId,
+                           @AuthenticationPrincipal UserDetails userDetails,
                            RedirectAttributes redirectAttributes) {
         User user = userRepository.findById(id).orElse(null);
         Role role = roleRepository.findById(roleId).orElse(null);
@@ -96,8 +101,14 @@ public class AdminController {
         user.setUsername(normalizedUsername);
         user.setEmail(normalizedEmail.isBlank() ? null : normalizedEmail);
         user.setPhone(normalizedPhone.isBlank() ? null : normalizedPhone);
+        String oldRoleName = user.getRole() != null ? user.getRole().getName() : "NONE";
         user.setRole(role);
         userRepository.save(user);
+
+        if (!oldRoleName.equals(role.getName())) {
+            findActor(userDetails).ifPresent(actor ->
+                    auditLogService.logUserRoleChanged(user, oldRoleName, role.getName(), actor));
+        }
 
         redirectAttributes.addFlashAttribute("success", "Đã cập nhật thông tin cho " + user.getFullName() + ".");
         return "redirect:/admin/users";
@@ -142,5 +153,12 @@ public class AdminController {
 
     private String normalizeEmail(String value) {
         return valueOrBlank(value).toLowerCase(Locale.ROOT);
+    }
+
+    private java.util.Optional<User> findActor(UserDetails userDetails) {
+        if (userDetails == null) {
+            return java.util.Optional.empty();
+        }
+        return userRepository.findByUsername(userDetails.getUsername());
     }
 }

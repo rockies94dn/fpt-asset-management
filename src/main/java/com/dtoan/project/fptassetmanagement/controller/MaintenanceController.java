@@ -3,6 +3,7 @@ import com.dtoan.project.fptassetmanagement.entity.*;
 import com.dtoan.project.fptassetmanagement.enums.MaintenanceStatus;
 import com.dtoan.project.fptassetmanagement.repository.UserRepository;
 import com.dtoan.project.fptassetmanagement.service.AssetService;
+import com.dtoan.project.fptassetmanagement.service.impl.AuditLogService;
 import com.dtoan.project.fptassetmanagement.service.impl.MaintenanceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
@@ -21,6 +22,7 @@ public class MaintenanceController {
     private final MaintenanceService maintenanceService;
     private final AssetService assetService;
     private final UserRepository userRepository;
+    private final AuditLogService auditLogService;
 
     @GetMapping
     public String list(@RequestParam(required = false) String keyword,
@@ -34,6 +36,8 @@ public class MaintenanceController {
         model.addAttribute("keyword", keyword);
         model.addAttribute("selectedStatus", status);
         model.addAttribute("canResolveMaintenance", canResolveMaintenance(userDetails));
+        model.addAttribute("canAssignMaintenance", hasRole(userDetails, "ADMIN"));
+        model.addAttribute("maintenanceUsers", userRepository.findByRoleNameAndIsActiveTrueOrderByFullNameAsc("MAINTENANCE"));
         return "maintenance/list";
     }
 
@@ -77,8 +81,36 @@ public class MaintenanceController {
             }
 
             User resolver = userRepository.findByUsername(userDetails.getUsername()).orElseThrow();
-            maintenanceService.resolve(id, resolutionNote, resolver);
+            MaintenanceRequest resolvedRequest = maintenanceService.resolve(id, resolutionNote, resolver);
+            auditLogService.logMaintenanceResolved(resolvedRequest, resolver);
             redirectAttributes.addFlashAttribute("success", "Đã giải quyết yêu cầu!");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/maintenance";
+    }
+
+    @PostMapping("/{id}/assign")
+    public String assign(@PathVariable Long id,
+                         @RequestParam Long assigneeId,
+                         @AuthenticationPrincipal UserDetails userDetails,
+                         RedirectAttributes redirectAttributes) {
+        try {
+            if (!hasRole(userDetails, "ADMIN")) {
+                redirectAttributes.addFlashAttribute("error", "Chỉ quản trị viên mới được phân công bảo trì.");
+                return "redirect:/maintenance";
+            }
+
+            User actor = userRepository.findByUsername(userDetails.getUsername()).orElseThrow();
+            User assignee = userRepository.findById(assigneeId)
+                    .filter(user -> Boolean.TRUE.equals(user.getIsActive())
+                            && user.getRole() != null
+                            && "MAINTENANCE".equals(user.getRole().getName()))
+                    .orElseThrow(() -> new IllegalArgumentException("Người được phân công phải có quyền MAINTENANCE."));
+
+            MaintenanceRequest assignedRequest = maintenanceService.assign(id, assignee);
+            auditLogService.logMaintenanceAssigned(assignedRequest, actor);
+            redirectAttributes.addFlashAttribute("success", "Đã phân công bảo trì cho " + assignee.getFullName() + ".");
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
         }
@@ -88,9 +120,15 @@ public class MaintenanceController {
     @PostMapping("/{id}/status")
     public String updateStatus(@PathVariable Long id,
                                @RequestParam MaintenanceStatus status,
+                               @AuthenticationPrincipal UserDetails userDetails,
                                RedirectAttributes redirectAttributes) {
-        maintenanceService.updateStatus(id, status);
-        redirectAttributes.addFlashAttribute("success", "Đã cập nhật trạng thái!");
+        try {
+            User actor = userRepository.findByUsername(userDetails.getUsername()).orElseThrow();
+            maintenanceService.updateStatus(id, status, actor);
+            redirectAttributes.addFlashAttribute("success", "Đã cập nhật trạng thái!");
+        } catch (Exception exception) {
+            redirectAttributes.addFlashAttribute("error", exception.getMessage());
+        }
         return "redirect:/maintenance";
     }
 

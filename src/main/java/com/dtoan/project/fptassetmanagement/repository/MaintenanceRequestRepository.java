@@ -34,10 +34,32 @@ public interface MaintenanceRequestRepository extends JpaRepository<MaintenanceR
     Optional<MaintenanceRequest> findFirstByAssetIdAndStatusInOrderByReportedAtDesc(Long assetId,
                                                                                     Collection<MaintenanceStatus> statuses);
 
+    List<MaintenanceRequest> findByAssetIdOrderByReportedAtDesc(Long assetId);
+
     List<MaintenanceRequest> findTop10ByOrderByReportedAtDesc();
 
     List<MaintenanceRequest> findTop10ByStatusInAndReportedAtBeforeOrderByReportedAtDesc(Collection<MaintenanceStatus> statuses,
                                                                                           LocalDateTime before);
+
+    List<MaintenanceRequest> findTop10ByAssignedToIdOrderByLastActivityAtDesc(Long assignedToId);
+
+    long countByAssignedToIdAndStatusIn(Long assignedToId, Collection<MaintenanceStatus> statuses);
+
+    List<MaintenanceRequest> findByStatusIn(Collection<MaintenanceStatus> statuses);
+
+    @Query("SELECT m FROM MaintenanceRequest m WHERE " +
+            "(:keyword IS NULL OR LOWER(m.asset.name) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+            "OR LOWER(m.ticketCode) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+            "OR LOWER(m.asset.qaCode) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
+            "(:status IS NULL OR m.status = :status) AND " +
+            "(:assigneeId IS NULL OR m.assignedTo.id = :assigneeId) AND " +
+            "(:reporterId IS NULL OR m.reportedBy.id = :reporterId) " +
+            "ORDER BY COALESCE(m.lastActivityAt, m.reportedAt) DESC")
+    Page<MaintenanceRequest> searchTicketApi(@Param("keyword") String keyword,
+                                             @Param("status") MaintenanceStatus status,
+                                             @Param("assigneeId") Long assigneeId,
+                                             @Param("reporterId") Long reporterId,
+                                             Pageable pageable);
 
     @Query("SELECT m.asset.id, COUNT(m) FROM MaintenanceRequest m " +
             "WHERE m.asset.id IN :assetIds AND m.status IN :statuses GROUP BY m.asset.id")

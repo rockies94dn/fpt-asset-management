@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+
+<th:block th:replace="~{fragments/layout :: layout(~{::title}, ~{::breadcrumb}, ~{::content}, ~{::head-extra}, ~{::scripts})}">
+    <title th:fragment="title">Báo thất lạc thiết bị</title>
+    <th:block th:fragment="head-extra"></th:block>
+
+    <th:block th:fragment="breadcrumb">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a th:href="@{/assets}">Thiết bị</a></li>
+                <li class="breadcrumb-item active">Báo thất lạc</li>
+            </ol>
+        </nav>
+    </th:block>
+
+    <th:block th:fragment="content" th:with="currentPage='lost-assets'">
+        <div class="page-header">
+            <div class="page-title">
+                <i class="bi bi-exclamation-diamond-fill"></i> Báo thất lạc thiết bị
+            </div>
+        </div>
+
+        <div class="row g-3 justify-content-center">
+            <div class="col-lg-7">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title"><i class="bi bi-list-ul"></i> Chọn thiết bị thất lạc</span>
+                    </div>
+                    <div class="card-body">
+                        <form th:action="@{/assets/report-lost}" method="post">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+                            <div class="mb-3">
+                                <label class="form-label">Thiết bị <span class="text-danger">*</span></label>
+                                <select name="qaCode" id="qaCodeSelect" class="form-select" required onchange="lookupAssetFromSelect()">
+                                    <option value="">-- Chọn thiết bị từ danh sách --</option>
+                                    <option th:each="item : ${assetsForLostReport}"
+                                            th:value="${item.qaCode}"
+                                            th:selected="${item.qaCode == qaCode}"
+                                            th:text="${item.name + ' | ' + item.qaCode + ' | ' + (item.room != null ? item.room.name : 'Chưa xác định') + ' | ' + item.status.displayName}">
+                                    </option>
+                                </select>
+                                <div class="form-text">Chọn đúng thiết bị đang bị thất lạc trong thực tế để ghi nhận sự cố.</div>
+                            </div>
+
+                            <div th:if="${asset != null}" class="mb-3 p-3 rounded-3"
+                                 style="background:#F8FAFC;border:1px solid rgba(100,116,139,0.2);">
+                                <div class="d-flex align-items-start justify-content-between gap-3">
+                                    <div>
+                                        <div style="font-weight:700;font-size:15px;" th:text="${asset.name}">Tên thiết bị</div>
+                                        <div style="font-size:12px;color:#6b7280;" th:text="${asset.qaCode}">QA</div>
+                                    </div>
+                                    <span th:class="'badge-status badge-' + ${asset.status.name().toLowerCase()}"
+                                          th:text="${asset.status.displayName}"></span>
+                                </div>
+                                <div class="mt-2" style="font-size:13px;color:#475569;">
+                                    Vị trí ghi nhận cuối:
+                                    <strong th:text="${asset.room != null ? asset.room.name : 'Chưa xác định'}">Phòng</strong>
+                                </div>
+                                <div class="mt-1" style="font-size:13px;color:#64748b;" th:if="${asset.category != null}">
+                                    Loại thiết bị: <strong th:text="${asset.category.name}">Thiết bị</strong>
+                                </div>
+                                <div class="alert alert-info mt-3 mb-0" th:if="${asset.status.name() == 'LOST'}">
+                                    Thiết bị này đã được đánh dấu thất lạc trước đó.
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Ghi chú</label>
+                                <textarea name="note" class="form-control" rows="4"
+                                          placeholder="Ví dụ: Không tìm thấy sau buổi học phòng A203, đã kiểm tra vị trí cuối nhưng chưa thấy."></textarea>
+                                <div class="form-text">Ghi chú sẽ được lưu vào nhật ký hoạt động của thiết bị.</div>
+                            </div>
+
+                            <div class="d-flex gap-2 mt-4">
+                                <button type="submit" class="btn btn-dark px-4"
+                                        th:disabled="${asset != null && asset.status.name() == 'LOST'}">
+                                    <i class="bi bi-exclamation-diamond-fill me-1"></i> Xác nhận thất lạc
+                                </button>
+                                <a th:href="@{/assets}" class="btn btn-outline-secondary px-4">Hủy</a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </th:block>
+
+    <th:block th:fragment="scripts">
+        <script>
+            function lookupAssetFromSelect() {
+                const select = document.getElementById('qaCodeSelect');
+                const code = select.value.trim();
+                if (code) {
+                    window.location.href = '/assets/report-lost?qaCode=' + encodeURIComponent(code);
+                }
+            }
+        </script>
+    </th:block>
+</th:block>
+</html>

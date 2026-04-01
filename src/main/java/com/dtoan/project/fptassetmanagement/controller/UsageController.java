@@ -4,6 +4,7 @@ import com.dtoan.project.fptassetmanagement.entity.*;
 import com.dtoan.project.fptassetmanagement.enums.UsageStatus;
 import com.dtoan.project.fptassetmanagement.repository.*;
 import com.dtoan.project.fptassetmanagement.service.AssetService;
+import com.dtoan.project.fptassetmanagement.service.impl.AuditLogService;
 import com.dtoan.project.fptassetmanagement.service.impl.AssetUsageService;
 import com.dtoan.project.fptassetmanagement.service.impl.RoomService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class UsageController {
     private final RoomRepository roomRepository;
     private final UserRepository userRepository;
     private final RoomService roomService;
+    private final AuditLogService auditLogService;
 
     @GetMapping("")
     public String list(@RequestParam(required = false) String keyword,
@@ -65,7 +67,8 @@ public class UsageController {
             }
             Room room = roomToId != null ? roomRepository.findById(roomToId).orElse(null) : null;
 
-            usageService.checkIn(asset, user, room, purpose);
+            AssetUsage usage = usageService.checkIn(asset, user, room, purpose);
+            auditLogService.logCheckIn(usage, user);
             redirectAttributes.addFlashAttribute("success", "Check-in thành công cho thiết bị: " + asset.getName());
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
@@ -76,9 +79,13 @@ public class UsageController {
     @PostMapping("/{id}/checkout")
     public String checkOut(@PathVariable Long id,
                            @RequestParam(required = false) String note,
+                           @AuthenticationPrincipal UserDetails userDetails,
                            RedirectAttributes redirectAttributes) {
         try {
-            usageService.checkOut(id, note);
+            User actor = userRepository.findByUsername(userDetails.getUsername())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+            AssetUsage checkedOutUsage = usageService.checkOut(id, note);
+            auditLogService.logCheckOut(checkedOutUsage, actor);
             redirectAttributes.addFlashAttribute(
                     "success",
                     "Check-out thành công! Thiết bị đã được trả về " + roomService.getOrCreateStoreRoom().getName() + "."

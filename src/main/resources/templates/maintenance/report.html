@@ -45,7 +45,7 @@
                                         <i class="bi bi-search"></i>
                                     </button>
                                 </div>
-                                <div id="qr-reader-small" style="display:none;margin-top:8px;border-radius:10px;overflow:hidden;max-height:200px;"></div>
+                                <div id="qr-reader-small" class="qr-scanner-preview" style="display:none;margin-top:8px;"></div>
                             </div>
 
                             <!-- Asset preview -->
@@ -99,6 +99,24 @@
     </th:block>
 
     <th:block th:fragment="scripts">
+        <style>
+            .qr-scanner-preview {
+                border-radius: 10px;
+                overflow: hidden;
+                background: #0f172a;
+                min-height: 280px;
+            }
+            .qr-scanner-preview > div {
+                border: none !important;
+            }
+            .qr-scanner-preview video,
+            .qr-scanner-preview img {
+                width: 100% !important;
+                height: auto !important;
+                max-height: none !important;
+                object-fit: contain;
+            }
+        </style>
         <script>
             let html5QrCode = null;
             let scannerRunning = false;
@@ -109,7 +127,14 @@
                     html5QrCode = new Html5Qrcode("qr-reader-small");
                     html5QrCode.start(
                         { facingMode: "environment" },
-                        { fps: 10, qrbox: { width: 180, height: 180 } },
+                        {
+                            fps: 10,
+                            aspectRatio: 1.333334,
+                            qrbox: (viewfinderWidth, viewfinderHeight) => {
+                                const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.7);
+                                return { width: size, height: size };
+                            }
+                        },
                         (text) => {
                             let code = text;
                             const match = text.match(/\/assets\/scan\/(.+)$/);

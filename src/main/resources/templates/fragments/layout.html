@@ -52,6 +52,11 @@
             <i class="bi bi-tools"></i>
             <span>Bảo trì / Báo hỏng</span>
         </a>
+        <a sec:authorize="hasRole('ADMIN')" th:href="@{/assets/report-lost}" class="nav-link"
+           th:classappend="${currentPage == 'lost-assets'} ? 'active'">
+            <i class="bi bi-exclamation-diamond-fill"></i>
+            <span>Báo thất lạc</span>
+        </a>
 
         <div class="nav-section-label mt-3">Báo cáo</div>
         <a th:href="@{/reports}" class="nav-link" th:classappend="${currentPage == 'reports'} ? 'active'">

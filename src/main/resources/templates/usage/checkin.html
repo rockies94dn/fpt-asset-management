@@ -30,7 +30,7 @@
                         </button>
                     </div>
                     <div class="card-body">
-                        <div id="qr-reader" style="display:none;border-radius:10px;overflow:hidden;"></div>
+                        <div id="qr-reader" class="qr-scanner-preview" style="display:none;"></div>
                         <div id="scanResult" style="display:none;" class="alert alert-success mt-2">
                             <i class="bi bi-check-circle me-2"></i>
                             Đã quét: <strong id="scannedCode"></strong>
@@ -149,6 +149,24 @@
     </th:block>
 
     <th:block th:fragment="scripts">
+        <style>
+            .qr-scanner-preview {
+                border-radius: 10px;
+                overflow: hidden;
+                background: #0f172a;
+                min-height: 320px;
+            }
+            .qr-scanner-preview > div {
+                border: none !important;
+            }
+            .qr-scanner-preview video,
+            .qr-scanner-preview img {
+                width: 100% !important;
+                height: auto !important;
+                max-height: none !important;
+                object-fit: contain;
+            }
+        </style>
         <script>
             let html5QrCode = null;
             let scannerRunning = false;
@@ -164,7 +182,14 @@
                     html5QrCode = new Html5Qrcode("qr-reader");
                     html5QrCode.start(
                         { facingMode: "environment" },
-                        { fps: 10, qrbox: { width: 220, height: 220 } },
+                        {
+                            fps: 10,
+                            aspectRatio: 1.333334,
+                            qrbox: (viewfinderWidth, viewfinderHeight) => {
+                                const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.7);
+                                return { width: size, height: size };
+                            }
+                        },
                         (decodedText) => {
                             // Extract QA code from URL if scanned from URL
                             let code = decodedText;

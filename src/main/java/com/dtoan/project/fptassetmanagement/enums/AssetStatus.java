@@ -4,7 +4,8 @@ public enum AssetStatus {
     AVAILABLE("Sẵn sàng", "success"),
     IN_USE("Đang sử dụng", "primary"),
     BROKEN("Hỏng", "danger"),
-    MAINTENANCE("Bảo trì", "warning");
+    MAINTENANCE("Bảo trì", "warning"),
+    LOST("Thất lạc", "secondary");
 
     private final String displayName;
     private final String badgeClass;

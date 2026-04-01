@@ -4,6 +4,7 @@ import com.dtoan.project.fptassetmanagement.entity.Role;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Nationalized;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
@@ -27,6 +28,7 @@ public class User {
     @Column(nullable = false, length = 255)
     private String password;
 
+    @Nationalized
     @Column(name = "full_name", nullable = false, length = 150)
     private String fullName;
 

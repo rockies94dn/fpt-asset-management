@@ -113,7 +113,7 @@
                                 </div>
 
                                 <!-- Status -->
-                                <div class="col-md-6">
+                                <div class="col-md-6" th:if="${canManageAssetApproval}">
                                     <label class="form-label">Trạng thái <span class="text-danger">*</span></label>
                                     <select name="status" class="form-select" required>
                                         <option th:each="s : ${statuses}"
@@ -121,6 +121,15 @@
                                                 th:text="${s.displayName}"
                                                 th:selected="${asset.status == s}"></option>
                                     </select>
+                                </div>
+                                <div class="col-md-6" th:if="${!canManageAssetApproval}">
+                                    <label class="form-label">Trạng thái</label>
+                                    <input type="text" class="form-control"
+                                           th:value="${asset.id == null ? 'Sẵn sàng' : asset.status.displayName}"
+                                           readonly style="background:#f9fafb;">
+                                    <div class="form-text">
+                                        Chỉ quản trị viên mới được thay đổi trạng thái thiết bị.
+                                    </div>
                                 </div>
                             </div>
 
@@ -198,7 +207,7 @@
                     </div>
                 </div>
 
-                <div class="card" th:if="${asset.id != null}">
+                <div class="card" th:if="${asset.id != null && canDeleteAsset}">
                     <div class="card-header">
                         <span class="card-title"><i class="bi bi-shield-exclamation"></i> Vùng nguy hiểm</span>
                     </div>
@@ -227,6 +236,16 @@
                                 * Sản phẩm đang sử dụng không thể xoá, hãy thu hồi trước.
                             </div>
                         </form>
+                    </div>
+                </div>
+                <div class="card" th:if="${asset.id != null && !canDeleteAsset}">
+                    <div class="card-header">
+                        <span class="card-title"><i class="bi bi-lock"></i> Quyền hạn</span>
+                    </div>
+                    <div class="card-body">
+                        <p style="font-size:13px;color:#6b7280;margin-bottom:0;">
+                            Chỉ quản trị viên mới được xóa thiết bị hoặc thay đổi các trạng thái phê duyệt.
+                        </p>
                     </div>
                 </div>
             </div>

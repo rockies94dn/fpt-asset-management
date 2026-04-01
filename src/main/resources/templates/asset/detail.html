@@ -39,11 +39,13 @@
                      th:style="'background:' + ${asset.status.name() == 'AVAILABLE' ? 'rgba(16,185,129,0.08)' :
                             asset.status.name() == 'IN_USE' ? 'rgba(59,130,246,0.08)' :
                             asset.status.name() == 'BROKEN' ? 'rgba(239,68,68,0.08)' :
-                            'rgba(245,158,11,0.08)'} + ';border:1px solid ' +
+                            asset.status.name() == 'MAINTENANCE' ? 'rgba(245,158,11,0.08)' :
+                            'rgba(100,116,139,0.08)'} + ';border:1px solid ' +
                             ${asset.status.name() == 'AVAILABLE' ? 'rgba(16,185,129,0.2)' :
                             asset.status.name() == 'IN_USE' ? 'rgba(59,130,246,0.2)' :
                             asset.status.name() == 'BROKEN' ? 'rgba(239,68,68,0.2)' :
-                            'rgba(245,158,11,0.2)'}">
+                            asset.status.name() == 'MAINTENANCE' ? 'rgba(245,158,11,0.2)' :
+                            'rgba(100,116,139,0.2)'}">
                 <span th:class="'badge-status badge-' + ${asset.status.name().toLowerCase()}" style="font-size:14px;padding:8px 16px;">
                     <i class="bi bi-circle-fill" style="font-size:8px;"></i>
                     <span th:text="${asset.status.displayName}"></span>
@@ -85,6 +87,16 @@
                         <span class="card-title"><i class="bi bi-clipboard-data"></i> Thông tin thiết bị</span>
                     </div>
                     <div class="card-body">
+                        <div th:if="${asset.status.name() == 'LOST'}"
+                             class="alert alert-warning d-flex align-items-start gap-2 mb-3">
+                            <i class="bi bi-exclamation-octagon-fill mt-1"></i>
+                            <div>
+                                Thiết bị này đang được ghi nhận là thất lạc trong thực tế.
+                                Vị trí hiển thị bên dưới là vị trí ghi nhận cuối cùng.
+                                Khi tìm thấy, quản trị viên cần xác nhận để chuyển thiết bị về
+                                <strong th:text="${storeRoom.name}">Store Room</strong>.
+                            </div>
+                        </div>
                         <div class="row g-3">
                             <div class="col-sm-6">
                                 <div class="info-item">
@@ -164,17 +176,117 @@
                             <i class="bi bi-box-arrow-in-right me-1"></i> Check-in
                         </a>
                     </div>
-                    <div class="col-sm-4">
+                    <div class="col-sm-4" th:if="${asset.status.name() != 'LOST'}">
                         <a th:href="@{'/maintenance/report?qaCode=' + ${asset.qaCode}}"
                            class="btn btn-warning w-100">
                             <i class="bi bi-tools me-1"></i> Báo hỏng
                         </a>
+                    </div>
+                    <div class="col-sm-4" th:if="${canManageAssetApproval and asset.status.name() != 'LOST'}">
+                        <form th:action="@{'/assets/' + ${asset.id} + '/mark-lost'}" method="post" class="w-100">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                            <button type="submit" class="btn btn-outline-dark w-100">
+                                <i class="bi bi-exclamation-diamond-fill me-1"></i> Báo thất lạc
+                            </button>
+                        </form>
+                    </div>
+                    <div class="col-sm-4" th:if="${canManageAssetApproval and asset.status.name() == 'LOST'}">
+                        <form th:action="@{'/assets/' + ${asset.id} + '/mark-found'}" method="post" class="w-100">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="bi bi-box-seam me-1"></i> Đã tìm thấy
+                            </button>
+                        </form>
                     </div>
                     <div class="col-sm-4">
                         <a th:href="@{'/assets/' + ${asset.id} + '/edit'}"
                            class="btn btn-outline-primary w-100">
                             <i class="bi bi-pencil me-1"></i> Chỉnh sửa
                         </a>
+                    </div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <span class="card-title"><i class="bi bi-tools"></i> Lịch sử bảo trì</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive" th:if="${!#lists.isEmpty(maintenanceHistory)}">
+                            <table class="table table-sm mb-0 align-middle">
+                                <thead>
+                                <tr>
+                                    <th>Loại</th>
+                                    <th>Trạng thái</th>
+                                    <th>Người báo</th>
+                                    <th>Phụ trách</th>
+                                    <th>Ngày báo</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <tr th:each="item : ${maintenanceHistory}">
+                                    <td>
+                                        <div th:text="${item.issueTypeDisplayName}"></div>
+                                        <div class="text-muted small" th:text="${#strings.abbreviate(item.description, 60)}"></div>
+                                    </td>
+                                    <td>
+                                        <span th:class="'badge-status badge-' + ${item.status.name().toLowerCase()}"
+                                              th:text="${item.status.displayName}"></span>
+                                    </td>
+                                    <td th:text="${item.reportedBy.fullName}"></td>
+                                    <td th:text="${item.assignedTo != null ? item.assignedTo.fullName : '-'}"></td>
+                                    <td>
+                                        <div th:text="${#temporals.format(item.reportedAt, 'dd/MM/yyyy HH:mm')}"></div>
+                                        <div class="text-muted small" th:if="${item.resolvedAt != null}"
+                                             th:text="'Xong: ' + ${#temporals.format(item.resolvedAt, 'dd/MM/yyyy HH:mm')}"></div>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div th:if="${#lists.isEmpty(maintenanceHistory)}" class="p-3 text-muted small">
+                            Chưa có lịch sử bảo trì cho thiết bị này.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-3" id="audit-log-section">
+                    <div class="card-header">
+                        <span class="card-title"><i class="bi bi-clock-history"></i> Nhật ký hoạt động</span>
+                    </div>
+                    <div class="card-body">
+                        <div th:if="${assetAuditLogs.isEmpty()}" class="text-muted small">
+                            Chưa có lịch sử thao tác cho thiết bị này.
+                        </div>
+                        <div th:if="${!assetAuditLogs.isEmpty()}" class="audit-log-list">
+                            <div th:each="log : ${assetAuditLogs.content}" class="audit-log-item">
+                                <div class="audit-log-summary" th:text="${log.summary}"></div>
+                                <div class="audit-log-meta"
+                                     th:text="${#temporals.format(log.createdAt, 'dd/MM/yyyy HH:mm')} + (${log.actor != null ? ' • ' + log.actor.fullName : ''})"></div>
+                            </div>
+                        </div>
+                        <nav th:if="${assetAuditLogs.totalPages > 1}" class="mt-3">
+                            <ul class="pagination pagination-sm mb-0 justify-content-end">
+                                <li class="page-item" th:classappend="${assetAuditLogs.first} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/assets/{id}(id=${asset.id}, auditPage=${assetAuditLogs.number - 1})} + '#audit-log-section'">
+                                        <i class="bi bi-chevron-left"></i>
+                                    </a>
+                                </li>
+                                <li th:each="i : ${#numbers.sequence(0, assetAuditLogs.totalPages - 1)}"
+                                    class="page-item"
+                                    th:classappend="${i == assetAuditLogs.number} ? 'active'">
+                                    <a class="page-link"
+                                       th:href="@{/assets/{id}(id=${asset.id}, auditPage=${i})} + '#audit-log-section'"
+                                       th:text="${i + 1}"></a>
+                                </li>
+                                <li class="page-item" th:classappend="${assetAuditLogs.last} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/assets/{id}(id=${asset.id}, auditPage=${assetAuditLogs.number + 1})} + '#audit-log-section'">
+                                        <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
                     </div>
                 </div>
             </div>
@@ -259,6 +371,24 @@
             .attention-warning { background:#FFFBEB; border-color:rgba(245,158,11,0.25); color:#92400E; }
             .attention-danger { background:#FEF2F2; border-color:rgba(239,68,68,0.2); color:#991B1B; }
             .attention-info { background:#EFF6FF; border-color:rgba(59,130,246,0.2); color:#1D4ED8; }
+            .audit-log-list { display:flex; flex-direction:column; gap:10px; }
+            .audit-log-item {
+                padding:10px 0;
+                border-bottom:1px solid #f3f4f6;
+            }
+            .audit-log-item:last-child { border-bottom:none; padding-bottom:0; }
+            .audit-log-summary {
+                font-size:14px;
+                line-height:1.6;
+                font-weight:500;
+                color:#1f2937;
+            }
+            .audit-log-meta {
+                margin-top:4px;
+                font-size:12px;
+                line-height:1.5;
+                color:#6b7280;
+            }
         </style>
     </th:block>
 
