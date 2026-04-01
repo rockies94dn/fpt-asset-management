@@ -10,6 +10,7 @@ import com.dtoan.project.fptassetmanagement.repository.RoomRepository;
 import com.dtoan.project.fptassetmanagement.service.AssetService;
 import com.dtoan.project.fptassetmanagement.service.impl.AssetUsageService;
 import com.dtoan.project.fptassetmanagement.service.impl.CurrentUserService;
+import com.dtoan.project.fptassetmanagement.service.impl.NotificationService;
 import com.dtoan.project.fptassetmanagement.service.impl.RoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -26,6 +27,7 @@ public class UsageApiController {
     private final RoomRepository roomRepository;
     private final RoomService roomService;
     private final CurrentUserService currentUserService;
+    private final NotificationService notificationService;
     private final ApiMapper apiMapper;
 
     @GetMapping
@@ -50,6 +52,7 @@ public class UsageApiController {
                 ? roomRepository.findById(request.roomToId()).orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng."))
                 : null;
         AssetUsage usage = assetUsageService.checkIn(asset, user, room, request.purpose());
+        notificationService.pushCheckInNotification(usage, user);
         return apiMapper.toUsageDto(usage);
     }
 
@@ -57,7 +60,9 @@ public class UsageApiController {
     public ApiDtos.UsageDto checkOut(@PathVariable Long id,
                                      @RequestBody(required = false) ApiDtos.CheckOutRequest request,
                                      Authentication authentication) {
-        currentUserService.requireUser(authentication);
-        return apiMapper.toUsageDto(assetUsageService.checkOut(id, request != null ? request.note() : null));
+        User user = currentUserService.requireUser(authentication);
+        AssetUsage usage = assetUsageService.checkOut(id, request != null ? request.note() : null);
+        notificationService.pushCheckOutNotification(usage, user);
+        return apiMapper.toUsageDto(usage);
     }
 }

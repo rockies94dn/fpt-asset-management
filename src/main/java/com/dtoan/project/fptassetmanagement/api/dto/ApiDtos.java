@@ -13,6 +13,22 @@ public final class ApiDtos {
     public record AuthRequest(String username, String password) {
     }
 
+    public record ForgotPasswordRequest(String email) {
+    }
+
+    public record ResetPasswordConfirmRequest(
+            String token,
+            String password,
+            String confirmPassword
+    ) {
+    }
+
+    public record TokenValidationResponse(
+            boolean valid,
+            String message
+    ) {
+    }
+
     public record UserDto(
             Long id,
             String username,

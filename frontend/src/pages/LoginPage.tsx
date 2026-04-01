@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useState } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { api, setCsrfToken } from '../api/client'
 import { useSession } from '../hooks/useSession'
 
@@ -12,6 +12,9 @@ export function LoginPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const searchParams = new URLSearchParams(location.search)
+  const verified = searchParams.get('verified')
+  const reset = searchParams.get('reset')
 
   useEffect(() => {
     document.body.classList.add('login-wrapper')
@@ -109,6 +112,27 @@ export function LoginPage() {
               </div>
             ) : null}
 
+            {verified === 'success' ? (
+              <div className="alert alert-success py-2 px-3 mb-3" style={{ borderRadius: '10px', fontSize: '13px' }}>
+                <i className="bi bi-check-circle me-2"></i>
+                Xác minh email thành công. Bạn có thể đăng nhập ngay bây giờ.
+              </div>
+            ) : null}
+
+            {verified === 'invalid' ? (
+              <div className="alert alert-warning py-2 px-3 mb-3" style={{ borderRadius: '10px', fontSize: '13px' }}>
+                <i className="bi bi-exclamation-circle me-2"></i>
+                Liên kết xác minh không hợp lệ hoặc đã hết hạn.
+              </div>
+            ) : null}
+
+            {reset === 'success' ? (
+              <div className="alert alert-success py-2 px-3 mb-3" style={{ borderRadius: '10px', fontSize: '13px' }}>
+                <i className="bi bi-check-circle me-2"></i>
+                Đặt lại mật khẩu thành công. Hãy đăng nhập bằng mật khẩu mới.
+              </div>
+            ) : null}
+
             <form onSubmit={handleSubmit}>
               <div className="mb-3">
                 <label className="form-label">Tên đăng nhập</label>
@@ -153,10 +177,12 @@ export function LoginPage() {
                     <i className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'}`}></i>
                   </button>
                 </div>
-                <div className="text-end mt-2">
-                  <a href="/auth/forgot-password" style={{ color: '#0f766e', fontWeight: 600, fontSize: '13px', textDecoration: 'none' }}>
+                <div className="mt-2" style={{ color: '#6b7280', fontSize: '13px' }}>
+                  <Link to="/forgot-password" style={{ color: '#FF6B00', fontWeight: 600, textDecoration: 'none' }}>
                     Quên mật khẩu?
-                  </a>
+                  </Link>
+                  {' '}
+                  Liên hệ quản trị viên nếu bạn cần tạo tài khoản mới.
                 </div>
               </div>
 
@@ -167,11 +193,8 @@ export function LoginPage() {
             </form>
 
             <hr style={{ margin: '20px 0', borderColor: '#f0f0f0' }} />
-            <div className="text-center">
-              <span style={{ fontSize: '13px', color: '#6b7280' }}>Chưa có tài khoản? </span>
-              <a href="/auth/register" style={{ color: '#FF6B00', fontWeight: 600, fontSize: '13px', textDecoration: 'none' }}>
-                Đăng ký ngay
-              </a>
+            <div className="text-center" style={{ fontSize: '13px', color: '#6b7280' }}>
+              Hệ thống hiện dùng giao diện React SPA, không còn phụ thuộc vào Thymeleaf.
             </div>
           </div>
         </div>

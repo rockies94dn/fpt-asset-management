@@ -6,8 +6,10 @@ import { AssetDetailPage } from './pages/AssetDetailPage'
 import { AssetFormPage } from './pages/AssetFormPage'
 import { AssetListPage } from './pages/AssetListPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotificationsPage } from './pages/NotificationsPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { ScanPage } from './pages/ScanPage'
 import { TicketDetailPage } from './pages/TicketDetailPage'
@@ -18,6 +20,8 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/scan" element={<ScanPage />} />
       <Route path="/scan/:qaCode" element={<ScanPage />} />
 

@@ -46,7 +46,7 @@ public class NotificationService {
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<AppNotification> getNotificationsForUsername(String username) {
         if (username == null || username.isBlank()) {
             return List.of();
@@ -57,16 +57,13 @@ public class NotificationService {
             return List.of();
         }
 
-        if (user.isAdmin()) {
-            syncNotifications(user);
-        }
         return notificationRepository.findTop10ByUserIdAndIsReadFalseAndIsArchivedFalseOrderByUpdatedAtDescCreatedAtDesc(user.getId())
                 .stream()
                 .map(this::toDto)
                 .toList();
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public long getUnreadNotificationCount(String username) {
         if (username == null || username.isBlank()) {
             return 0;
@@ -77,13 +74,10 @@ public class NotificationService {
             return 0;
         }
 
-        if (user.isAdmin()) {
-            syncNotifications(user);
-        }
         return notificationRepository.countByUserIdAndIsReadFalseAndIsArchivedFalse(user.getId());
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<AppNotification> getRecentNotificationsForUsername(String username) {
         if (username == null || username.isBlank()) {
             return List.of();
@@ -92,10 +86,6 @@ public class NotificationService {
         User user = userRepository.findByUsername(username).orElse(null);
         if (user == null) {
             return List.of();
-        }
-
-        if (user.isAdmin()) {
-            syncNotifications(user);
         }
 
         return notificationRepository.findTop10ByUserIdAndIsArchivedFalseOrderByIsReadAscUpdatedAtDescCreatedAtDesc(user.getId())
@@ -179,6 +169,32 @@ public class NotificationService {
                     tone
             );
         }
+    }
+
+    @Transactional
+    public void pushCheckInNotification(AssetUsage usage, User actor) {
+        pushNotification(
+                activeAdminsExcept(actor),
+                "usage-checkin-" + usage.getId(),
+                "Check-in mới",
+                buildCheckInMessage(usage),
+                "/usages",
+                "bi-box-arrow-in-right",
+                "primary"
+        );
+    }
+
+    @Transactional
+    public void pushCheckOutNotification(AssetUsage usage, User actor) {
+        pushNotification(
+                activeAdminsExcept(actor),
+                "usage-checkout-" + usage.getId(),
+                "Check-out mới",
+                buildCheckOutMessage(usage),
+                "/usages",
+                "bi-box-arrow-left",
+                "success"
+        );
     }
 
     private List<AppNotification> buildSystemNotifications() {
@@ -353,6 +369,14 @@ public class NotificationService {
                 .createdAt(notification.getCreatedAt())
                 .updatedAt(notification.getUpdatedAt())
                 .build();
+    }
+
+    private List<User> activeAdminsExcept(User actor) {
+        Long actorId = actor != null ? actor.getId() : null;
+        return userRepository.findByRoleNameAndIsActiveTrueOrderByFullNameAsc("ADMIN")
+                .stream()
+                .filter(user -> actorId == null || !actorId.equals(user.getId()))
+                .toList();
     }
 
     private String buildCheckInMessage(AssetUsage usage) {

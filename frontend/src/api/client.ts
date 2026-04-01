@@ -104,6 +104,12 @@ export const api = {
   login: (payload: { username: string; password: string }) =>
     request<MeResponse>('/api/auth/login', { method: 'POST', bodyJson: payload }),
   logout: () => request<{ message: string }>('/api/auth/logout', { method: 'POST' }),
+  forgotPassword: (email: string) =>
+    request<{ message: string }>('/api/auth/forgot-password', { method: 'POST', bodyJson: { email } }),
+  validateResetToken: (token: string) =>
+    request<{ valid: boolean; message: string }>(`/api/auth/reset-password/validate?token=${encodeURIComponent(token)}`),
+  confirmResetPassword: (payload: { token: string; password: string; confirmPassword: string }) =>
+    request<{ message: string }>('/api/auth/reset-password', { method: 'POST', bodyJson: payload }),
   dashboard: () => request<DashboardResponse>('/api/dashboard'),
   assets: (params: URLSearchParams) => request<PageDto<Asset>>(`/api/assets?${params.toString()}`),
   asset: (id: string) => request<AssetDetail>(`/api/assets/${id}`),
