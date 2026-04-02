@@ -126,7 +126,7 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
 });
 
 // Dashboard charts initialization (called from dashboard page)
-window.initDashboardCharts = function(available, inUse, broken, maintenance) {
+window.initDashboardCharts = function(available, inUse, broken, maintenance, lost) {
     // Donut chart
     const ctx = document.getElementById('statusChart');
     if (!ctx) return;
@@ -134,10 +134,10 @@ window.initDashboardCharts = function(available, inUse, broken, maintenance) {
     new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: ['Sẵn sàng', 'Đang dùng', 'Hỏng', 'Bảo trì'],
+            labels: ['Sẵn sàng', 'Đang dùng', 'Hỏng', 'Bảo trì', 'Thất lạc'],
             datasets: [{
-                data: [available, inUse, broken, maintenance],
-                backgroundColor: ['#10B981', '#3B82F6', '#EF4444', '#F59E0B'],
+                data: [available, inUse, broken, maintenance, lost],
+                backgroundColor: ['#10B981', '#3B82F6', '#EF4444', '#F59E0B', '#64748B'],
                 borderWidth: 0,
                 hoverOffset: 6
             }]

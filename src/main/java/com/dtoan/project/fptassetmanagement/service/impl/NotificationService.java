@@ -13,9 +13,11 @@ import com.dtoan.project.fptassetmanagement.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,50 +33,71 @@ public class NotificationService {
     private static final int MAX_EVENT_NOTIFICATIONS = 12;
     private static final List<MaintenanceStatus> OPEN_MAINTENANCE_STATUSES =
             List.of(MaintenanceStatus.PENDING, MaintenanceStatus.IN_PROGRESS);
+    private static final List<String> SYNCED_NOTIFICATION_PREFIXES = List.of(
+            "usage-checkin-",
+            "usage-checkout-",
+            "maintenance-created-",
+            "maintenance-overdue-"
+    );
 
     private final MaintenanceRequestRepository maintenanceRequestRepository;
     private final AssetUsageRepository assetUsageRepository;
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<AppNotification> getNotificationsForUsername(String username) {
         if (username == null || username.isBlank()) {
             return List.of();
         }
 
         User user = userRepository.findByUsername(username).orElse(null);
-        if (user == null || !user.isAdmin()) {
+        if (user == null) {
             return List.of();
         }
 
-        syncNotifications(user);
         return notificationRepository.findTop10ByUserIdAndIsReadFalseAndIsArchivedFalseOrderByUpdatedAtDescCreatedAtDesc(user.getId())
                 .stream()
                 .map(this::toDto)
                 .toList();
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public long getUnreadNotificationCount(String username) {
         if (username == null || username.isBlank()) {
             return 0;
         }
 
         User user = userRepository.findByUsername(username).orElse(null);
-        if (user == null || !user.isAdmin()) {
+        if (user == null) {
             return 0;
         }
 
-        syncNotifications(user);
         return notificationRepository.countByUserIdAndIsReadFalseAndIsArchivedFalse(user.getId());
+    }
+
+    @Transactional(readOnly = true)
+    public List<AppNotification> getRecentNotificationsForUsername(String username) {
+        if (username == null || username.isBlank()) {
+            return List.of();
+        }
+
+        User user = userRepository.findByUsername(username).orElse(null);
+        if (user == null) {
+            return List.of();
+        }
+
+        return notificationRepository.findTop10ByUserIdAndIsArchivedFalseOrderByIsReadAscUpdatedAtDescCreatedAtDesc(user.getId())
+                .stream()
+                .map(this::toDto)
+                .toList();
     }
 
     @Transactional
     public void markAsRead(Long notificationId, String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng"));
-        requireAdmin(user);
 
         Notification notification = notificationRepository.findByIdAndUserId(notificationId, user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông báo"));
@@ -85,10 +108,93 @@ public class NotificationService {
     public void markAllAsRead(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng"));
-        requireAdmin(user);
 
         List<Notification> notifications = notificationRepository.findByUserIdAndIsArchivedFalse(user.getId());
         notifications.forEach(this::archiveNotification);
+    }
+
+    @Transactional
+    public void pushNotification(User user,
+                                 String key,
+                                 String title,
+                                 String message,
+                                 String href,
+                                 String icon,
+                                 String tone) {
+        Notification notification = notificationRepository
+                .findByUserIdAndNotificationKeyAndIsArchivedFalse(user.getId(), key)
+                .orElseGet(() -> Notification.builder()
+                        .user(user)
+                        .notificationKey(key)
+                        .count(0L)
+                        .build());
+
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setHref(href);
+        notification.setIcon(icon);
+        notification.setTone(tone);
+        notification.setCount(notification.getCount() == null ? 1L : notification.getCount() + 1L);
+        notification.setIsRead(false);
+        notification.setIsArchived(false);
+
+        Notification saved = notificationRepository.save(notification);
+        messagingTemplate.convertAndSendToUser(
+                user.getUsername(),
+                "/queue/notifications",
+                toDto(saved)
+        );
+    }
+
+    @Transactional
+    public void pushNotification(Collection<User> users,
+                                 String keyPrefix,
+                                 String title,
+                                 String message,
+                                 String href,
+                                 String icon,
+                                 String tone) {
+        Set<Long> seenUserIds = new HashSet<>();
+        for (User user : users) {
+            if (user == null || user.getId() == null || !seenUserIds.add(user.getId())) {
+                continue;
+            }
+            pushNotification(
+                    user,
+                    keyPrefix + "-" + user.getId(),
+                    title,
+                    message,
+                    href,
+                    icon,
+                    tone
+            );
+        }
+    }
+
+    @Transactional
+    public void pushCheckInNotification(AssetUsage usage, User actor) {
+        pushNotification(
+                activeAdmins(),
+                "usage-checkin-" + usage.getId(),
+                "Check-in mới",
+                buildCheckInMessage(usage),
+                "/usages",
+                "bi-box-arrow-in-right",
+                "primary"
+        );
+    }
+
+    @Transactional
+    public void pushCheckOutNotification(AssetUsage usage, User actor) {
+        pushNotification(
+                activeAdmins(),
+                "usage-checkout-" + usage.getId(),
+                "Check-out mới",
+                buildCheckOutMessage(usage),
+                "/usages",
+                "bi-box-arrow-left",
+                "success"
+        );
     }
 
     private List<AppNotification> buildSystemNotifications() {
@@ -130,7 +236,7 @@ public class NotificationService {
                     .message(buildMaintenanceCreatedMessage(request))
                     .icon("bi-tools")
                     .tone("warning")
-                    .href("/maintenance")
+                    .href("/tickets")
                     .count(1)
                     .createdAt(request.getReportedAt())
                     .updatedAt(request.getReportedAt())
@@ -145,7 +251,7 @@ public class NotificationService {
                     .message(buildMaintenanceOverdueMessage(request))
                     .icon("bi-hourglass-split")
                     .tone("danger")
-                    .href("/maintenance")
+                    .href("/tickets")
                     .count(1)
                     .createdAt(request.getReportedAt())
                     .updatedAt(request.getReportedAt())
@@ -163,7 +269,9 @@ public class NotificationService {
         List<AppNotification> systemNotifications = buildSystemNotifications();
         Map<String, Notification> existingByKey = new HashMap<>();
         for (Notification notification : notificationRepository.findByUserIdAndIsArchivedFalse(user.getId())) {
-            existingByKey.put(notification.getNotificationKey(), notification);
+            if (isSyncedNotificationKey(notification.getNotificationKey())) {
+                existingByKey.put(notification.getNotificationKey(), notification);
+            }
         }
 
         Set<String> activeKeys = new HashSet<>();
@@ -210,10 +318,16 @@ public class NotificationService {
 
         for (Notification notification : existingByKey.values()) {
             if (!activeKeys.contains(notification.getNotificationKey())) {
-                notification.setIsArchived(true);
-                notificationRepository.save(notification);
+                archiveNotification(notification);
             }
         }
+    }
+
+    private boolean isSyncedNotificationKey(String key) {
+        if (key == null || key.isBlank()) {
+            return false;
+        }
+        return SYNCED_NOTIFICATION_PREFIXES.stream().anyMatch(key::startsWith);
     }
 
     private void archiveNotification(Notification notification) {
@@ -257,10 +371,10 @@ public class NotificationService {
                 .build();
     }
 
-    private void requireAdmin(User user) {
-        if (!user.isAdmin()) {
-            throw new IllegalStateException("Bạn không có quyền truy cập thông báo hệ thống.");
-        }
+    private List<User> activeAdmins() {
+        return userRepository.findByRoleNameAndIsActiveTrueOrderByFullNameAsc("ADMIN")
+                .stream()
+                .toList();
     }
 
     private String buildCheckInMessage(AssetUsage usage) {

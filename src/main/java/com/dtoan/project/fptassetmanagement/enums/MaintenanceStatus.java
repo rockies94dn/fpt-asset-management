@@ -1,7 +1,7 @@
 package com.dtoan.project.fptassetmanagement.enums;
 
 public enum MaintenanceStatus {
-    PENDING("Chờ xử lý", "warning"),
+    PENDING("Chờ tiếp nhận", "warning"),
     IN_PROGRESS("Đang xử lý", "primary"),
     RESOLVED("Đã giải quyết", "success"),
     CANCELLED("Đã hủy", "secondary");

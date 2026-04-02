@@ -3,6 +3,7 @@ package com.dtoan.project.fptassetmanagement.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Nationalized;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
@@ -29,9 +30,11 @@ public class Notification {
     @Column(name = "notification_key", nullable = false, length = 100)
     private String notificationKey;
 
+    @Nationalized
     @Column(nullable = false, length = 150)
     private String title;
 
+    @Nationalized
     @Column(nullable = false, length = 500)
     private String message;
 

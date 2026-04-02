@@ -39,6 +39,12 @@ public class MaintenanceRequest {
     @Builder.Default
     private String priority = "NORMAL";
 
+    @Column(name = "ticket_code", unique = true, length = 50)
+    private String ticketCode;
+
+    @Column(name = "reported_room_snapshot", length = 200)
+    private String reportedRoomSnapshot;
+
     @Enumerated(EnumType.STRING)
     @Column(length = 30)
     @Builder.Default
@@ -50,6 +56,19 @@ public class MaintenanceRequest {
 
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;
+
+    @Column(name = "sla_due_at")
+    private LocalDateTime slaDueAt;
+
+    @Column(name = "sla_breached_at")
+    private LocalDateTime slaBreachedAt;
+
+    @Column(name = "last_activity_at")
+    @Builder.Default
+    private LocalDateTime lastActivityAt = LocalDateTime.now();
+
+    @Column(name = "assignment_source", length = 30)
+    private String assignmentSource;
 
     @Column(name = "resolution_note", length = 2000)
     private String resolutionNote;
@@ -87,5 +106,13 @@ public class MaintenanceRequest {
             case "UPGRADE" -> "Nâng cấp";
             default -> this.issueType;
         };
+    }
+
+    public boolean isOverdue() {
+        return this.slaDueAt != null
+                && this.resolvedAt == null
+                && this.status != MaintenanceStatus.RESOLVED
+                && this.status != MaintenanceStatus.CANCELLED
+                && LocalDateTime.now().isAfter(this.slaDueAt);
     }
 }

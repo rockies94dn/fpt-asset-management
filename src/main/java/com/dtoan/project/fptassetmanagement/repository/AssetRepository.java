@@ -20,6 +20,8 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
 
     boolean existsByQaCode(String qaCode);
 
+    List<Asset> findByIsActiveTrueOrderByNameAsc();
+
     @Query("SELECT a FROM Asset a WHERE a.isActive = true AND " +
             "(:keyword IS NULL OR LOWER(a.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
             "LOWER(a.qaCode) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
