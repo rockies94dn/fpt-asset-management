@@ -181,6 +181,8 @@ export const api = {
       categories: { id: number; name: string; icon: string }[]
       technicians: User[]
     }>('/api/admin/meta'),
+  updateAdminUser: (id: number, payload: unknown) =>
+    request<User>(`/api/admin/users/${id}`, { method: 'PUT', bodyJson: payload }),
   toggleUser: (id: number) => request<User>(`/api/admin/users/${id}/toggle`, { method: 'POST' }),
   resetPassword: (id: number, newPassword: string) =>
     request(`/api/admin/users/${id}/reset-password`, { method: 'POST', bodyJson: { newPassword } }),

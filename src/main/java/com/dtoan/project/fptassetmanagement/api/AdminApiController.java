@@ -49,10 +49,26 @@ public class AdminApiController {
     public ApiDtos.UserDto updateUser(@PathVariable Long id, @RequestBody ApiDtos.UserUpdateRequest request) {
         User user = userRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng."));
         Role role = roleRepository.findById(request.roleId()).orElseThrow(() -> new IllegalArgumentException("Không tìm thấy quyền."));
-        user.setFullName(request.fullName());
-        user.setUsername(request.username());
-        user.setEmail(request.email());
-        user.setPhone(request.phone());
+
+        String fullName = valueOrBlank(request.fullName());
+        String username = valueOrBlank(request.username());
+        String email = normalizeEmail(request.email());
+        String phone = valueOrBlank(request.phone());
+
+        if (fullName.isBlank() || username.isBlank()) {
+            throw new IllegalArgumentException("Họ tên và tên đăng nhập không được để trống.");
+        }
+        if (userRepository.existsByUsernameAndIdNot(username, id)) {
+            throw new IllegalArgumentException("Tên đăng nhập đã tồn tại.");
+        }
+        if (!email.isBlank() && userRepository.existsByEmailAndIdNot(email, id)) {
+            throw new IllegalArgumentException("Email đã được sử dụng.");
+        }
+
+        user.setFullName(fullName);
+        user.setUsername(username);
+        user.setEmail(email.isBlank() ? null : email);
+        user.setPhone(phone.isBlank() ? null : phone);
         user.setRole(role);
         return apiMapper.toUserDto(userRepository.save(user));
     }
@@ -133,5 +149,13 @@ public class AdminApiController {
     public ApiDtos.SimpleMessageResponse deleteCoverageRule(@PathVariable Long id) {
         coverageRuleRepository.deleteById(id);
         return new ApiDtos.SimpleMessageResponse("Đã xóa quy tắc phân công.");
+    }
+
+    private String valueOrBlank(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private String normalizeEmail(String value) {
+        return valueOrBlank(value).toLowerCase();
     }
 }

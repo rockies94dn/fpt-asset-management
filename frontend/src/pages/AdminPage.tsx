@@ -7,9 +7,18 @@ export function AdminPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const users = useQuery({ queryKey: ['admin', 'users'], queryFn: api.adminUsers })
+  const adminMeta = useQuery({ queryKey: ['admin', 'meta'], queryFn: api.adminMeta })
   const rooms = useQuery({ queryKey: ['admin', 'rooms'], queryFn: api.adminRooms })
 
   const [roomForm, setRoomForm] = useState({ code: '', name: '', building: '', floor: '', capacity: '', description: '' })
+  const [editingUserId, setEditingUserId] = useState<number | null>(null)
+  const [userForm, setUserForm] = useState({
+    fullName: '',
+    username: '',
+    email: '',
+    phone: '',
+    roleId: '',
+  })
 
   const createRoom = useMutation({
     mutationFn: () =>
@@ -40,8 +49,47 @@ export function AdminPage() {
     },
   })
 
+  const updateUser = useMutation({
+    mutationFn: () =>
+      api.updateAdminUser(editingUserId!, {
+        ...userForm,
+        roleId: Number(userForm.roleId),
+      }),
+    onSuccess: async () => {
+      setEditingUserId(null)
+      setUserForm({ fullName: '', username: '', email: '', phone: '', roleId: '' })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+    },
+  })
+
   const activeRooms = rooms.data?.filter((room) => room.active) ?? []
   const currentTab = searchParams.get('tab') === 'rooms' ? 'rooms' : 'users'
+  const roleOptions = adminMeta.data?.roles ?? []
+
+  function startEditUser(user: {
+    id: number
+    fullName: string
+    username: string
+    email: string | null
+    phone: string | null
+    role: string
+  }) {
+    const matchedRole = roleOptions.find((role) => role.name === user.role)
+    setEditingUserId(user.id)
+    setUserForm({
+      fullName: user.fullName,
+      username: user.username,
+      email: user.email ?? '',
+      phone: user.phone ?? '',
+      roleId: matchedRole ? String(matchedRole.id) : '',
+    })
+  }
+
+  function cancelEditUser() {
+    setEditingUserId(null)
+    setUserForm({ fullName: '', username: '', email: '', phone: '', roleId: '' })
+    updateUser.reset()
+  }
 
   function setTab(tab: 'users' | 'rooms') {
     const next = new URLSearchParams(searchParams)
@@ -89,6 +137,87 @@ export function AdminPage() {
               Quản lý người dùng
             </div>
           </div>
+
+          {editingUserId != null ? (
+            <div className="card mb-3">
+              <div className="card-header">
+                <span className="card-title">
+                  <i className="bi bi-pencil-square"></i>
+                  Chỉnh sửa người dùng
+                </span>
+              </div>
+              <div className="card-body">
+                <div className="row g-3 mb-3">
+                  <div className="col-md-6">
+                    <label className="form-label">Họ tên</label>
+                    <input
+                      className="form-control"
+                      value={userForm.fullName}
+                      onChange={(event) => setUserForm({ ...userForm, fullName: event.target.value })}
+                    />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">Tên đăng nhập</label>
+                    <input
+                      className="form-control"
+                      value={userForm.username}
+                      onChange={(event) => setUserForm({ ...userForm, username: event.target.value })}
+                    />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">Email</label>
+                    <input
+                      type="email"
+                      className="form-control"
+                      value={userForm.email}
+                      onChange={(event) => setUserForm({ ...userForm, email: event.target.value })}
+                    />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">Số điện thoại</label>
+                    <input
+                      className="form-control"
+                      value={userForm.phone}
+                      onChange={(event) => setUserForm({ ...userForm, phone: event.target.value })}
+                    />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">Quyền</label>
+                    <select
+                      className="form-select"
+                      value={userForm.roleId}
+                      onChange={(event) => setUserForm({ ...userForm, roleId: event.target.value })}
+                    >
+                      <option value="">Chọn quyền</option>
+                      {roleOptions.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {updateUser.error ? <div className="toast mb-3">{updateUser.error.message}</div> : null}
+
+                <div className="d-flex flex-wrap gap-2">
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => updateUser.mutate()}
+                    disabled={updateUser.isPending || !userForm.fullName || !userForm.username || !userForm.roleId}
+                  >
+                    <i className="bi bi-check-lg me-1"></i>
+                    {updateUser.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
+                  </button>
+                  <button className="btn btn-outline-secondary" onClick={cancelEditUser} disabled={updateUser.isPending}>
+                    <i className="bi bi-x-lg me-1"></i>
+                    Hủy
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="table-wrapper">
             <div className="table-responsive">
               <table className="table table-hover mb-0">
@@ -125,6 +254,10 @@ export function AdminPage() {
                         </span>
                       </td>
                       <td className="react-table-actions">
+                        <button className="btn btn-sm btn-outline-primary" onClick={() => startEditUser(user)}>
+                          <i className="bi bi-pencil-square me-1"></i>
+                          Sửa
+                        </button>
                         <button className={`btn btn-sm ${user.active ? 'btn-outline-warning' : 'btn-outline-success'}`} onClick={() => toggleUser.mutate(user.id)}>
                           <i className={`bi ${user.active ? 'bi-lock' : 'bi-unlock'} me-1`}></i>
                           {user.active ? 'Khóa' : 'Mở'}

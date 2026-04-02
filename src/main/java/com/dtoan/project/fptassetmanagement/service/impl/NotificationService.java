@@ -174,7 +174,7 @@ public class NotificationService {
     @Transactional
     public void pushCheckInNotification(AssetUsage usage, User actor) {
         pushNotification(
-                activeAdminsExcept(actor),
+                activeAdmins(),
                 "usage-checkin-" + usage.getId(),
                 "Check-in mới",
                 buildCheckInMessage(usage),
@@ -187,7 +187,7 @@ public class NotificationService {
     @Transactional
     public void pushCheckOutNotification(AssetUsage usage, User actor) {
         pushNotification(
-                activeAdminsExcept(actor),
+                activeAdmins(),
                 "usage-checkout-" + usage.getId(),
                 "Check-out mới",
                 buildCheckOutMessage(usage),
@@ -371,11 +371,9 @@ public class NotificationService {
                 .build();
     }
 
-    private List<User> activeAdminsExcept(User actor) {
-        Long actorId = actor != null ? actor.getId() : null;
+    private List<User> activeAdmins() {
         return userRepository.findByRoleNameAndIsActiveTrueOrderByFullNameAsc("ADMIN")
                 .stream()
-                .filter(user -> actorId == null || !actorId.equals(user.getId()))
                 .toList();
     }
 
