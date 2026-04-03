@@ -37,7 +37,7 @@ public class AppWebController {
 
     @GetMapping("/auth/register")
     public String registerRoute() {
-        return "redirect:/#/login";
+        return "redirect:/#/register";
     }
 
     @GetMapping("/auth/forgot-password")

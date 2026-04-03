@@ -51,19 +51,36 @@ public class TicketApiController {
                                                    @RequestParam(defaultValue = "10") int size,
                                                    Authentication authentication) {
         User user = currentUserService.requireUser(authentication);
-        Long assigneeId = null;
+        Long viewerId = null;
         Long reporterId = null;
         if (!user.isAdmin()) {
             if (currentUserService.hasRole(user, "MAINTENANCE")) {
-                assigneeId = user.getId();
+                viewerId = user.getId();
             } else {
                 reporterId = user.getId();
             }
         }
         return apiMapper.toPageDto(
-                maintenanceService.searchTickets(keyword, status, assigneeId, reporterId, PageRequest.of(page, size)),
+                maintenanceService.searchTickets(keyword, status, viewerId, reporterId, PageRequest.of(page, size)),
                 apiMapper::toTicketDto
         );
+    }
+
+    @GetMapping("/overdue")
+    public List<ApiDtos.TicketDto> overdueList(Authentication authentication) {
+        User user = currentUserService.requireUser(authentication);
+        Long viewerId = null;
+        Long reporterId = null;
+        if (!user.isAdmin()) {
+            if (currentUserService.hasRole(user, "MAINTENANCE")) {
+                viewerId = user.getId();
+            } else {
+                reporterId = user.getId();
+            }
+        }
+        return maintenanceService.getOverdueTickets(viewerId, reporterId).stream()
+                .map(apiMapper::toTicketDto)
+                .toList();
     }
 
     @GetMapping("/meta")
@@ -90,12 +107,9 @@ public class TicketApiController {
 
     @GetMapping("/{id}")
     public ApiDtos.TicketDetailDto detail(@PathVariable Long id, Authentication authentication) {
+        User user = currentUserService.requireUser(authentication);
         MaintenanceRequest ticket = requireAccessibleTicket(id, authentication);
-        return apiMapper.toTicketDetailDto(
-                ticket,
-                ticketChatService.getMessages(id),
-                attachmentStorageService.listForTicket(id)
-        );
+        return toTicketDetailDto(ticket, user);
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -113,11 +127,7 @@ public class TicketApiController {
             attachmentStorageService.store(ticket, user, attachment);
         }
         ticketChatService.systemMessage(ticket, user, user.getFullName() + " đã tạo ticket " + ticket.getTicketCode() + ".");
-        return apiMapper.toTicketDetailDto(
-                ticket,
-                ticketChatService.getMessages(ticket.getId()),
-                attachmentStorageService.listForTicket(ticket.getId())
-        );
+        return toTicketDetailDto(ticket, user);
     }
 
     @PostMapping("/{id}/assign")
@@ -132,6 +142,14 @@ public class TicketApiController {
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy kỹ thuật viên."));
         MaintenanceRequest ticket = maintenanceService.assign(id, assignee);
         ticketChatService.systemMessage(ticket, actor, "Ticket được giao cho " + assignee.getFullName() + ".");
+        return apiMapper.toTicketDto(ticket);
+    }
+
+    @PostMapping("/{id}/claim")
+    public ApiDtos.TicketDto claim(@PathVariable Long id, Authentication authentication) {
+        User actor = currentUserService.requireUser(authentication);
+        MaintenanceRequest ticket = maintenanceService.claim(id, actor);
+        ticketChatService.systemMessage(ticket, actor, actor.getFullName() + " đã nhận việc.");
         return apiMapper.toTicketDto(ticket);
     }
 
@@ -211,5 +229,15 @@ public class TicketApiController {
             throw new IllegalStateException("Bạn không có quyền truy cập ticket này.");
         }
         return ticket;
+    }
+
+    private ApiDtos.TicketDetailDto toTicketDetailDto(MaintenanceRequest ticket, User user) {
+        return apiMapper.toTicketDetailDto(
+                ticket,
+                ticketChatService.getMessages(ticket.getId()),
+                attachmentStorageService.listForTicket(ticket.getId()),
+                maintenanceService.canClaimTicket(ticket, user),
+                maintenanceService.findPendingCandidateUsers(ticket.getId())
+        );
     }
 }

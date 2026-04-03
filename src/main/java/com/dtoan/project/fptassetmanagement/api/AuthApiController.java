@@ -4,6 +4,7 @@ import com.dtoan.project.fptassetmanagement.api.dto.ApiDtos;
 import com.dtoan.project.fptassetmanagement.entity.User;
 import com.dtoan.project.fptassetmanagement.service.impl.CurrentUserService;
 import com.dtoan.project.fptassetmanagement.service.impl.PasswordResetService;
+import com.dtoan.project.fptassetmanagement.service.impl.RegistrationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -18,6 +19,7 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 @RestController
 @RequestMapping("/api")
@@ -28,6 +30,7 @@ public class AuthApiController {
     private final CurrentUserService currentUserService;
     private final ApiMapper apiMapper;
     private final PasswordResetService passwordResetService;
+    private final RegistrationService registrationService;
 
     @GetMapping("/me")
     public ApiDtos.MeResponse me(Authentication authentication,
@@ -79,6 +82,31 @@ public class AuthApiController {
         }
         SecurityContextHolder.clearContext();
         return new ApiDtos.SimpleMessageResponse("Đăng xuất thành công.");
+    }
+
+    @PostMapping("/auth/register")
+    @ResponseStatus(HttpStatus.OK)
+    public ApiDtos.SimpleMessageResponse register(@RequestBody ApiDtos.RegisterRequest request,
+                                                  HttpServletRequest httpServletRequest) {
+        String baseUrl = ServletUriComponentsBuilder.fromRequestUri(httpServletRequest)
+                .replacePath(null)
+                .replaceQuery(null)
+                .build()
+                .toUriString();
+        registrationService.register(
+                User.builder()
+                        .fullName(request.fullName())
+                        .username(request.username())
+                        .email(request.email())
+                        .phone(request.phone())
+                        .password(request.password())
+                        .build(),
+                request.confirmPassword(),
+                baseUrl
+        );
+        return new ApiDtos.SimpleMessageResponse(
+                "Đăng ký thành công. Vui lòng kiểm tra email để xác minh tài khoản trước khi đăng nhập."
+        );
     }
 
     @PostMapping("/auth/forgot-password")

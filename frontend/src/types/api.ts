@@ -115,6 +115,8 @@ export type TicketDetail = {
   ticket: Ticket
   messages: ChatMessage[]
   attachments: TicketAttachment[]
+  claimable: boolean
+  candidateTechnicians: User[]
 }
 
 export type Usage = {

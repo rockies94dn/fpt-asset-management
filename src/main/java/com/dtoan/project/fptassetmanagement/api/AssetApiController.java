@@ -125,8 +125,11 @@ public class AssetApiController {
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy loại thiết bị.")));
 
         if (createMode) {
+            String categoryCode = asset.getCategory().getCode() != null && !asset.getCategory().getCode().isBlank()
+                    ? asset.getCategory().getCode()
+                    : asset.getCategory().getName();
             asset.setQaCode(request.autoGenerateCode() || request.qaCode() == null || request.qaCode().isBlank()
-                    ? assetService.generateQaCode(asset.getCategory().getName().substring(0, Math.min(3, asset.getCategory().getName().length())))
+                    ? assetService.generateQaCode(categoryCode)
                     : request.qaCode().trim());
             asset.setCreatedBy(actor);
             asset.setRoom(roomService.getOrCreateStoreRoom());

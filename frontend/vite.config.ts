@@ -10,7 +10,9 @@ export default defineConfig({
     assetsDir: 'app-assets',
   },
   server: {
+    host: '0.0.0.0',
     port: 5173,
+    allowedHosts: ['gudrun-hypergamous-isreal.ngrok-free.dev'],
     proxy: {
       '/api': 'http://localhost:8080',
       '/assets': 'http://localhost:8080',

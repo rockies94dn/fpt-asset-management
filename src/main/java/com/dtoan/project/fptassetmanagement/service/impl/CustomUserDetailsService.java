@@ -3,6 +3,7 @@ package com.dtoan.project.fptassetmanagement.service.impl;
 import com.dtoan.project.fptassetmanagement.entity.User;
 import com.dtoan.project.fptassetmanagement.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.*;
 import org.springframework.stereotype.Service;
@@ -21,9 +22,7 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy tài khoản: " + username));
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
-            throw new UsernameNotFoundException(Boolean.FALSE.equals(user.getEmailVerified())
-                    ? "Tài khoản chưa xác minh email"
-                    : "Tài khoản đã bị vô hiệu hóa");
+            throw new DisabledException("Tài khoản của bạn đã bị admin khóa.");
         }
 
         return new org.springframework.security.core.userdetails.User(

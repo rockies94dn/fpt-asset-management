@@ -1,10 +1,26 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { formatDateTime } from '../components/format'
+import { statusClassName } from '../components/status'
+import { useRealtime } from '../hooks/useRealtime'
+import { useSession } from '../hooks/useSession'
 
 export function DashboardPage() {
+  const session = useSession()
+  const queryClient = useQueryClient()
   const dashboard = useQuery({ queryKey: ['dashboard'], queryFn: api.dashboard })
+  const subscriptions = useMemo(
+    () => ({
+      '/user/queue/tickets': () => {
+        void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      },
+    }),
+    [queryClient],
+  )
+
+  useRealtime(Boolean(session.data?.authenticated), subscriptions)
 
   if (dashboard.isLoading) {
     return <div className="toast">Loading dashboard...</div>
@@ -185,7 +201,7 @@ export function DashboardPage() {
                           <div style={{ fontWeight: 700 }}>{ticket.ticketCode}</div>
                           <div style={{ fontSize: '13px', color: '#6b7280' }}>{ticket.asset.name}</div>
                         </div>
-                        <span className={`badge-status badge-${ticket.status.toLowerCase()}`}>
+                        <span className={`badge-status badge-${statusClassName(ticket.status)}`}>
                           {ticket.statusLabel}
                         </span>
                       </div>
@@ -249,7 +265,7 @@ export function DashboardPage() {
                       </td>
                       <td style={{ fontSize: '13px', color: '#6b7280' }}>{asset.room?.name ?? '-'}</td>
                       <td>
-                        <span className={`badge-status badge-${asset.status.toLowerCase()}`}>
+                        <span className={`badge-status badge-${statusClassName(asset.status)}`}>
                           {asset.statusLabel}
                         </span>
                       </td>
@@ -314,7 +330,7 @@ export function DashboardPage() {
                       <td style={{ fontSize: '13px' }}>{asset.category?.name ?? '-'}</td>
                       <td style={{ fontSize: '13px', color: '#6b7280' }}>{asset.room?.name ?? '-'}</td>
                       <td>
-                        <span className={`badge-status badge-${asset.status.toLowerCase()}`}>
+                        <span className={`badge-status badge-${statusClassName(asset.status)}`}>
                           {asset.statusLabel}
                         </span>
                       </td>

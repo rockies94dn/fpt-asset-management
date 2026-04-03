@@ -1,7 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
+
+const issueTypeOptions = [
+  { value: '', label: 'Tất cả loại ticket' },
+  { value: 'BROKEN', label: 'Hỏng' },
+  { value: 'MAINTENANCE', label: 'Bảo trì' },
+  { value: 'UPGRADE', label: 'Nâng cấp' },
+]
+
+function issueTypeLabel(value: string | null) {
+  return issueTypeOptions.find((option) => option.value === (value ?? ''))?.label ?? (value || 'Tất cả loại ticket')
+}
 
 export function AdminPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -9,8 +20,16 @@ export function AdminPage() {
   const users = useQuery({ queryKey: ['admin', 'users'], queryFn: api.adminUsers })
   const adminMeta = useQuery({ queryKey: ['admin', 'meta'], queryFn: api.adminMeta })
   const rooms = useQuery({ queryKey: ['admin', 'rooms'], queryFn: api.adminRooms })
+  const coverageRules = useQuery({ queryKey: ['admin', 'coverage-rules'], queryFn: api.coverageRules })
 
   const [roomForm, setRoomForm] = useState({ code: '', name: '', building: '', floor: '', capacity: '', description: '' })
+  const [roomNotice, setRoomNotice] = useState<{ tone: 'success' | 'danger'; message: string } | null>(null)
+  const [coverageForm, setCoverageForm] = useState({
+    technicianId: '',
+    categoryId: '',
+    issueType: '',
+  })
+  const [coverageNotice, setCoverageNotice] = useState<{ tone: 'success' | 'danger'; message: string } | null>(null)
   const [editingUserId, setEditingUserId] = useState<number | null>(null)
   const [userForm, setUserForm] = useState({
     fullName: '',
@@ -29,8 +48,12 @@ export function AdminPage() {
       }),
     onSuccess: async () => {
       setRoomForm({ code: '', name: '', building: '', floor: '', capacity: '', description: '' })
+      setRoomNotice({ tone: 'success', message: 'Đã tạo phòng mới.' })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'rooms'] })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'meta'] })
+    },
+    onError: (error: Error) => {
+      setRoomNotice({ tone: 'danger', message: error.message })
     },
   })
 
@@ -42,10 +65,38 @@ export function AdminPage() {
     },
   })
 
+  const createCoverageRule = useMutation({
+    mutationFn: () =>
+      api.createCoverageRule({
+        technicianId: Number(coverageForm.technicianId),
+        categoryId: Number(coverageForm.categoryId),
+        roomId: null,
+        issueType: coverageForm.issueType || null,
+        sortOrder: 0,
+        active: true,
+      }),
+    onSuccess: async () => {
+      setCoverageForm({ technicianId: '', categoryId: '', issueType: '' })
+      setCoverageNotice({ tone: 'success', message: 'Đã lưu quy tắc phân công kỹ thuật.' })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'coverage-rules'] })
+    },
+    onError: (error: Error) => {
+      setCoverageNotice({ tone: 'danger', message: error.message })
+    },
+  })
+
+  const deleteCoverageRule = useMutation({
+    mutationFn: (id: number) => api.deleteCoverageRule(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'coverage-rules'] })
+    },
+  })
+
   const toggleUser = useMutation({
     mutationFn: (id: number) => api.toggleUser(id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'meta'] })
     },
   })
 
@@ -59,11 +110,18 @@ export function AdminPage() {
       setEditingUserId(null)
       setUserForm({ fullName: '', username: '', email: '', phone: '', roleId: '' })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'meta'] })
     },
   })
 
   const activeRooms = rooms.data?.filter((room) => room.active) ?? []
-  const currentTab = searchParams.get('tab') === 'rooms' ? 'rooms' : 'users'
+  const technicians = adminMeta.data?.technicians ?? []
+  const categories = adminMeta.data?.categories ?? []
+  const currentTab = useMemo(() => {
+    const tab = searchParams.get('tab')
+    if (tab === 'rooms' || tab === 'coverage') return tab
+    return 'users'
+  }, [searchParams])
   const roleOptions = adminMeta.data?.roles ?? []
 
   function startEditUser(user: {
@@ -91,7 +149,7 @@ export function AdminPage() {
     updateUser.reset()
   }
 
-  function setTab(tab: 'users' | 'rooms') {
+  function setTab(tab: 'users' | 'rooms' | 'coverage') {
     const next = new URLSearchParams(searchParams)
     next.set('tab', tab)
     setSearchParams(next, { replace: true })
@@ -124,6 +182,14 @@ export function AdminPage() {
             >
               <i className="bi bi-building me-1"></i>
               Quản lý phòng học
+            </button>
+            <button
+              type="button"
+              className={`btn ${currentTab === 'coverage' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setTab('coverage')}
+            >
+              <i className="bi bi-diagram-3 me-1"></i>
+              Phân công kỹ thuật
             </button>
           </div>
         </div>
@@ -337,30 +403,81 @@ export function AdminPage() {
                   <div className="row g-2 mb-3">
                     <div className="col-md-4">
                       <label className="form-label">Mã phòng</label>
-                      <input className="form-control" value={roomForm.code} onChange={(event) => setRoomForm({ ...roomForm, code: event.target.value })} />
+                      <input
+                        className="form-control"
+                        value={roomForm.code}
+                        onChange={(event) => {
+                          setRoomNotice(null)
+                          setRoomForm({ ...roomForm, code: event.target.value })
+                        }}
+                      />
                     </div>
                     <div className="col-md-8">
                       <label className="form-label">Tên phòng</label>
-                      <input className="form-control" value={roomForm.name} onChange={(event) => setRoomForm({ ...roomForm, name: event.target.value })} />
+                      <input
+                        className="form-control"
+                        value={roomForm.name}
+                        onChange={(event) => {
+                          setRoomNotice(null)
+                          setRoomForm({ ...roomForm, name: event.target.value })
+                        }}
+                      />
                     </div>
                     <div className="col-md-4">
                       <label className="form-label">Tòa nhà</label>
-                      <input className="form-control" value={roomForm.building} onChange={(event) => setRoomForm({ ...roomForm, building: event.target.value })} />
+                      <input
+                        className="form-control"
+                        value={roomForm.building}
+                        onChange={(event) => {
+                          setRoomNotice(null)
+                          setRoomForm({ ...roomForm, building: event.target.value })
+                        }}
+                      />
                     </div>
                     <div className="col-md-4">
                       <label className="form-label">Tầng</label>
-                      <input className="form-control" value={roomForm.floor} onChange={(event) => setRoomForm({ ...roomForm, floor: event.target.value })} />
+                      <input
+                        className="form-control"
+                        value={roomForm.floor}
+                        onChange={(event) => {
+                          setRoomNotice(null)
+                          setRoomForm({ ...roomForm, floor: event.target.value })
+                        }}
+                      />
                     </div>
                     <div className="col-md-4">
                       <label className="form-label">Sức chứa</label>
-                      <input className="form-control" value={roomForm.capacity} onChange={(event) => setRoomForm({ ...roomForm, capacity: event.target.value })} />
+                      <input
+                        className="form-control"
+                        value={roomForm.capacity}
+                        onChange={(event) => {
+                          setRoomNotice(null)
+                          setRoomForm({ ...roomForm, capacity: event.target.value })
+                        }}
+                      />
                     </div>
                     <div className="col-12">
                       <label className="form-label">Mô tả</label>
-                      <textarea className="form-control" rows={3} value={roomForm.description} onChange={(event) => setRoomForm({ ...roomForm, description: event.target.value })} />
+                      <textarea
+                        className="form-control"
+                        rows={3}
+                        value={roomForm.description}
+                        onChange={(event) => {
+                          setRoomNotice(null)
+                          setRoomForm({ ...roomForm, description: event.target.value })
+                        }}
+                      />
                     </div>
                   </div>
-                  {createRoom.error ? <div className="toast mb-3">{createRoom.error.message}</div> : null}
+                  {roomNotice ? (
+                    <div
+                      className={`alert alert-${roomNotice.tone} py-2 px-3 mb-3`}
+                      style={{ borderRadius: '10px', fontSize: '13px' }}
+                      role="alert"
+                    >
+                      {roomNotice.message}
+                    </div>
+                  ) : null}
                   <button className="btn btn-primary w-100" onClick={() => createRoom.mutate()} disabled={createRoom.isPending || !roomForm.code || !roomForm.name}>
                     <i className="bi bi-check-lg me-1"></i>
                     Thêm phòng
@@ -372,6 +489,161 @@ export function AdminPage() {
         </>
       ) : null}
 
+      {currentTab === 'coverage' ? (
+        <>
+          <div className="page-header mb-3" style={{ paddingBottom: 0 }}>
+            <div className="page-title" style={{ fontSize: '22px' }}>
+              <i className="bi bi-diagram-3"></i>
+              Phân công kỹ thuật theo category
+            </div>
+          </div>
+
+          <div className="row g-3 mb-4">
+            <div className="col-lg-4">
+              <div className="card h-100">
+                <div className="card-header">
+                  <span className="card-title">
+                    <i className="bi bi-plus-circle"></i>
+                    Thêm quy tắc
+                  </span>
+                </div>
+                <div className="card-body">
+                  <div className="row g-3 mb-3">
+                    <div className="col-12">
+                      <label className="form-label">Kỹ thuật viên</label>
+                      <select
+                        className="form-select"
+                        value={coverageForm.technicianId}
+                        onChange={(event) => {
+                          setCoverageNotice(null)
+                          setCoverageForm({ ...coverageForm, technicianId: event.target.value })
+                        }}
+                      >
+                        <option value="">Chọn kỹ thuật viên</option>
+                        {technicians.map((technician) => (
+                          <option key={technician.id} value={technician.id}>
+                            {technician.fullName} ({technician.username})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-12">
+                      <label className="form-label">Category thiết bị</label>
+                      <select
+                        className="form-select"
+                        value={coverageForm.categoryId}
+                        onChange={(event) => {
+                          setCoverageNotice(null)
+                          setCoverageForm({ ...coverageForm, categoryId: event.target.value })
+                        }}
+                      >
+                        <option value="">Chọn category</option>
+                        {categories.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-12">
+                      <label className="form-label">Loại ticket</label>
+                      <select
+                        className="form-select"
+                        value={coverageForm.issueType}
+                        onChange={(event) => {
+                          setCoverageNotice(null)
+                          setCoverageForm({ ...coverageForm, issueType: event.target.value })
+                        }}
+                      >
+                        {issueTypeOptions.map((option) => (
+                          <option key={option.value || 'ALL'} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {coverageNotice ? (
+                    <div
+                      className={`alert alert-${coverageNotice.tone} py-2 px-3 mb-3`}
+                      style={{ borderRadius: '10px', fontSize: '13px' }}
+                      role="alert"
+                    >
+                      {coverageNotice.message}
+                    </div>
+                  ) : null}
+
+                  <button
+                    className="btn btn-primary w-100"
+                    onClick={() => createCoverageRule.mutate()}
+                    disabled={createCoverageRule.isPending || !coverageForm.technicianId || !coverageForm.categoryId}
+                  >
+                    <i className="bi bi-check-lg me-1"></i>
+                    {createCoverageRule.isPending ? 'Đang lưu...' : 'Lưu quy tắc'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-lg-8">
+              <div className="card h-100">
+                <div className="card-header">
+                  <span className="card-title">
+                    <i className="bi bi-list-task"></i>
+                    Quy tắc hiện có
+                  </span>
+                </div>
+                <div className="card-body p-0">
+                  <div className="table-responsive">
+                    <table className="table table-hover mb-0">
+                      <thead>
+                        <tr>
+                          <th>Kỹ thuật viên</th>
+                          <th>Category</th>
+                          <th>Loại ticket</th>
+                          <th>Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {coverageRules.data?.length ? (
+                          coverageRules.data.map((rule) => (
+                            <tr key={rule.id}>
+                              <td>
+                                <div style={{ fontWeight: 600 }}>{rule.technician.fullName}</div>
+                                <div style={{ fontSize: '12px', color: '#6b7280' }}>{rule.technician.username}</div>
+                              </td>
+                              <td>{rule.category?.name ?? 'Tất cả category'}</td>
+                              <td>{issueTypeLabel(rule.issueType)}</td>
+                              <td className="react-table-actions">
+                                <button className="btn btn-sm btn-outline-danger" onClick={() => deleteCoverageRule.mutate(rule.id)} disabled={deleteCoverageRule.isPending}>
+                                  <i className="bi bi-trash me-1"></i>
+                                  Xóa
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={4}>
+                              <div className="empty-state py-4">
+                                <div className="empty-state-icon">
+                                  <i className="bi bi-diagram-3"></i>
+                                </div>
+                                <div className="empty-state-text">Chưa có quy tắc phân công nào</div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : null}
     </>
   )
 }

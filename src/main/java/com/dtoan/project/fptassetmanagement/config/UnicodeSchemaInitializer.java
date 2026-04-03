@@ -5,14 +5,22 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+
 @Component
 @RequiredArgsConstructor
 public class UnicodeSchemaInitializer {
 
     private final JdbcTemplate jdbcTemplate;
+    private final DataSource dataSource;
 
     @PostConstruct
     public void ensureUnicodeColumns() {
+        if (!isSqlServer()) {
+            return;
+        }
+
         jdbcTemplate.execute("""
                 IF EXISTS (
                     SELECT 1
@@ -58,5 +66,14 @@ public class UnicodeSchemaInitializer {
                     ALTER TABLE notifications ALTER COLUMN message NVARCHAR(500) NOT NULL;
                 END
                 """);
+    }
+
+    private boolean isSqlServer() {
+        try (Connection connection = dataSource.getConnection()) {
+            String productName = connection.getMetaData().getDatabaseProductName();
+            return productName != null && productName.toLowerCase().contains("sql server");
+        } catch (Exception exception) {
+            return false;
+        }
     }
 }

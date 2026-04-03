@@ -5,6 +5,7 @@ import com.dtoan.project.fptassetmanagement.enums.AssetStatus;
 import com.dtoan.project.fptassetmanagement.enums.MaintenanceStatus;
 import com.dtoan.project.fptassetmanagement.repository.AssetRepository;
 import com.dtoan.project.fptassetmanagement.service.AssetService;
+import com.dtoan.project.fptassetmanagement.util.CodeNormalizer;
 import com.dtoan.project.fptassetmanagement.util.QRCodeUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -32,8 +33,18 @@ public class AssetServiceImpl implements AssetService {
     @Transactional(readOnly = true)
     public Page<Asset> searchAssets(String keyword, AssetStatus status, Long categoryId, Long roomId,
                                     boolean attentionOnly, Pageable pageable) {
-        String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
-        return assetRepository.searchAssets(
+        String kw = (keyword != null && !keyword.isBlank()) ? "%" + keyword.trim() + "%" : null;
+        if (kw == null) {
+            return assetRepository.searchAssets(
+                    status,
+                    categoryId,
+                    roomId,
+                    attentionOnly,
+                    OPEN_MAINTENANCE_STATUSES,
+                    pageable
+            );
+        }
+        return assetRepository.searchAssetsByKeyword(
                 kw,
                 status,
                 categoryId,
@@ -83,7 +94,8 @@ public class AssetServiceImpl implements AssetService {
 
     @Override
     public String generateQaCode(String categoryCode) {
-        String prefix = "FPT-" + categoryCode.toUpperCase();
+        String normalizedCategoryCode = CodeNormalizer.asciiToken(categoryCode, 6);
+        String prefix = "FPT-" + (normalizedCategoryCode.isBlank() ? "GEN" : normalizedCategoryCode);
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyMMddHHmm"));
         String code = prefix + "-" + timestamp;
         // Ensure uniqueness

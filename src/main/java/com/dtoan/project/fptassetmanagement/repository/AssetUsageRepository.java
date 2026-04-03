@@ -18,13 +18,19 @@ public interface AssetUsageRepository extends JpaRepository<AssetUsage, Long> {
     Optional<AssetUsage> findByAssetIdAndStatus(Long assetId, UsageStatus status);
 
     @Query("SELECT u FROM AssetUsage u WHERE " +
-            "(:keyword IS NULL OR LOWER(u.asset.name) LIKE LOWER(CONCAT('%',:keyword,'%')) OR " +
-            "LOWER(u.user.fullName) LIKE LOWER(CONCAT('%',:keyword,'%'))) AND " +
             "(:status IS NULL OR u.status = :status) " +
             "ORDER BY u.checkInTime DESC")
-    Page<AssetUsage> searchUsages(@Param("keyword") String keyword,
-                                  @Param("status") UsageStatus status,
+    Page<AssetUsage> searchUsages(@Param("status") UsageStatus status,
                                   Pageable pageable);
+
+    @Query("SELECT u FROM AssetUsage u WHERE " +
+            "(LOWER(u.asset.name) LIKE LOWER(:keywordPattern) OR " +
+            "LOWER(u.user.fullName) LIKE LOWER(:keywordPattern)) AND " +
+            "(:status IS NULL OR u.status = :status) " +
+            "ORDER BY u.checkInTime DESC")
+    Page<AssetUsage> searchUsagesByKeyword(@Param("keywordPattern") String keywordPattern,
+                                           @Param("status") UsageStatus status,
+                                           Pageable pageable);
 
     @Query("SELECT u FROM AssetUsage u WHERE u.asset.id = :assetId ORDER BY u.checkInTime DESC")
     List<AssetUsage> findByAssetIdOrderByCheckInTimeDesc(@Param("assetId") Long assetId);

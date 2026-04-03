@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../api/client'
+import { apiUrl } from '../config/runtime'
 
 export function ReportsPage() {
   const rooms = useQuery({ queryKey: ['reports', 'meta'], queryFn: api.reportsMeta })
@@ -41,7 +42,7 @@ export function ReportsPage() {
 
               <div className="row g-3">
                 <div className="col-sm-6">
-                  <a className="react-export-card text-reset" href={`/api/reports/export/excel${query}`}>
+                  <a className="react-export-card text-reset" href={apiUrl(`/api/reports/export/excel${query}`)}>
                     <div className="react-export-icon text-success">
                       <i className="bi bi-file-earmark-excel"></i>
                     </div>
@@ -55,7 +56,7 @@ export function ReportsPage() {
                   </a>
                 </div>
                 <div className="col-sm-6">
-                  <a className="react-export-card text-reset" href={`/api/reports/export/pdf${query}`}>
+                  <a className="react-export-card text-reset" href={apiUrl(`/api/reports/export/pdf${query}`)}>
                     <div className="react-export-icon text-danger">
                       <i className="bi bi-file-earmark-pdf"></i>
                     </div>
