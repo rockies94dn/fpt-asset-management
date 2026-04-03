@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
+import { statusClassName } from '../components/status'
 
 export function AssetListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -129,7 +130,7 @@ export function AssetListPage() {
                   <div className="react-asset-icon">
                     <i className={`bi ${asset.category?.icon ?? 'bi-pc-display'}`}></i>
                   </div>
-                  <span className={`badge-status badge-${asset.status.toLowerCase()}`}>
+                  <span className={`badge-status badge-${statusClassName(asset.status)}`}>
                     {asset.statusLabel}
                   </span>
                 </div>
@@ -187,7 +188,7 @@ export function AssetListPage() {
                     <td style={{ fontSize: '13px', color: '#6b7280' }}>{asset.room?.name ?? '-'}</td>
                     <td style={{ fontSize: '13px' }}>{asset.brand ?? '-'}</td>
                     <td>
-                      <span className={`badge-status badge-${asset.status.toLowerCase()}`}>
+                      <span className={`badge-status badge-${statusClassName(asset.status)}`}>
                         {asset.statusLabel}
                       </span>
                     </td>

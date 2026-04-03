@@ -1,9 +1,19 @@
 package com.dtoan.project.fptassetmanagement.service.impl;
 
-import com.dtoan.project.fptassetmanagement.entity.*;
+import com.dtoan.project.fptassetmanagement.entity.Asset;
+import com.dtoan.project.fptassetmanagement.entity.TechnicianCoverageRule;
+import com.dtoan.project.fptassetmanagement.entity.MaintenanceRequest;
+import com.dtoan.project.fptassetmanagement.entity.TicketCandidateAssignment;
+import com.dtoan.project.fptassetmanagement.entity.User;
 import com.dtoan.project.fptassetmanagement.enums.AssetStatus;
 import com.dtoan.project.fptassetmanagement.enums.MaintenanceStatus;
-import com.dtoan.project.fptassetmanagement.repository.*;
+import com.dtoan.project.fptassetmanagement.enums.TicketCandidateStatus;
+import com.dtoan.project.fptassetmanagement.exception.TicketAlreadyClaimedException;
+import com.dtoan.project.fptassetmanagement.repository.AssetRepository;
+import com.dtoan.project.fptassetmanagement.repository.MaintenanceRequestRepository;
+import com.dtoan.project.fptassetmanagement.repository.TechnicianCoverageRuleRepository;
+import com.dtoan.project.fptassetmanagement.repository.TicketCandidateAssignmentRepository;
+import com.dtoan.project.fptassetmanagement.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,7 +24,10 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -28,13 +41,14 @@ public class MaintenanceService {
     private final MaintenanceRequestRepository maintenanceRepository;
     private final AssetRepository assetRepository;
     private final TechnicianCoverageRuleRepository coverageRuleRepository;
+    private final TicketCandidateAssignmentRepository candidateAssignmentRepository;
     private final UserRepository userRepository;
     private final TicketRealtimeService ticketRealtimeService;
 
     public MaintenanceRequest createRequest(Asset asset, User reportedBy,
                                             String issueType, String description, String priority) {
         LocalDateTime now = LocalDateTime.now();
-        MaintenanceRequest req = MaintenanceRequest.builder()
+        MaintenanceRequest request = MaintenanceRequest.builder()
                 .asset(asset)
                 .reportedBy(reportedBy)
                 .issueType(issueType)
@@ -48,12 +62,6 @@ public class MaintenanceService {
                 .slaDueAt(calculateSlaDueAt(priority, now))
                 .build();
 
-        pickAssignee(asset, issueType).ifPresent(assignee -> {
-            req.setAssignedTo(assignee);
-            req.setAssignmentSource("AUTO");
-        });
-
-        // Update asset status
         if ("BROKEN".equals(issueType)) {
             asset.setStatus(AssetStatus.BROKEN);
         } else {
@@ -61,107 +69,184 @@ public class MaintenanceService {
         }
         assetRepository.save(asset);
 
-        MaintenanceRequest saved = maintenanceRepository.save(req);
+        MaintenanceRequest saved = maintenanceRepository.save(request);
+        List<TicketCandidateAssignment> candidates = createCandidateAssignments(saved, asset, issueType);
+        if (!candidates.isEmpty()) {
+            saved.setAssignmentSource(candidates.getFirst().getAssignmentSource());
+            saved = maintenanceRepository.save(saved);
+        }
+
+        Collection<User> visibleRecipients = visibleRecipients(saved);
         ticketRealtimeService.broadcastTicketChanged(
                 saved,
                 "TICKET_CREATED",
                 reportedBy.getFullName() + " đã tạo ticket " + saved.getTicketCode() + " cho " + asset.getName() + ".",
-                recipients(saved)
+                visibleRecipients,
+                visibleRecipients
+        );
+        return saved;
+    }
+
+    public MaintenanceRequest claim(Long requestId, User actor) {
+        MaintenanceRequest request = maintenanceRepository.findByIdForUpdate(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy yêu cầu"));
+
+        if (!MaintenanceStatus.PENDING.equals(request.getStatus()) || request.getAssignedTo() != null) {
+            throw new TicketAlreadyClaimedException("Ticket đã được kỹ thuật viên khác nhận.");
+        }
+
+        TicketCandidateAssignment actorCandidate = candidateAssignmentRepository
+                .findByTicketIdAndTechnicianId(requestId, actor.getId())
+                .orElseThrow(() -> new IllegalStateException("Bạn không có quyền nhận ticket này."));
+
+        if (actorCandidate.getStatus() != TicketCandidateStatus.PENDING) {
+            throw new TicketAlreadyClaimedException("Ticket đã được kỹ thuật viên khác nhận.");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        List<TicketCandidateAssignment> assignments = candidateAssignmentRepository.findByTicketIdOrderByCreatedAtAscIdAsc(requestId);
+
+        request.setAssignedTo(actor);
+        request.setStatus(MaintenanceStatus.IN_PROGRESS);
+        request.setAssignmentSource(actorCandidate.getAssignmentSource());
+        request.setLastActivityAt(now);
+
+        for (TicketCandidateAssignment assignment : assignments) {
+            if (actor.getId().equals(assignment.getTechnician().getId())) {
+                assignment.setStatus(TicketCandidateStatus.ACCEPTED);
+                assignment.setAcceptedAt(now);
+                assignment.setRevokedAt(null);
+                continue;
+            }
+            if (assignment.getStatus() == TicketCandidateStatus.PENDING) {
+                assignment.setStatus(TicketCandidateStatus.REVOKED);
+                assignment.setRevokedAt(now);
+            }
+        }
+
+        candidateAssignmentRepository.saveAll(assignments);
+        MaintenanceRequest saved = maintenanceRepository.save(request);
+
+        Collection<User> visibleRecipients = visibleRecipients(saved);
+        Collection<User> refreshRecipients = refreshRecipients(saved, assignments);
+        ticketRealtimeService.broadcastTicketChanged(
+                saved,
+                "TICKET_CLAIMED",
+                actor.getFullName() + " đã nhận ticket " + saved.getTicketCode() + ".",
+                visibleRecipients,
+                refreshRecipients
         );
         return saved;
     }
 
     public MaintenanceRequest resolve(Long requestId, String resolutionNote, User resolvedBy) {
-        MaintenanceRequest req = maintenanceRepository.findById(requestId)
+        MaintenanceRequest request = maintenanceRepository.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy yêu cầu"));
-        if (!canResolveTicket(req, resolvedBy)) {
+        if (!canResolveTicket(request, resolvedBy)) {
             throw new IllegalStateException("Chỉ quản trị viên hoặc kỹ thuật viên được giao mới có thể hoàn tất ticket đang xử lý.");
         }
 
-        req.setStatus(MaintenanceStatus.RESOLVED);
-        req.setResolutionNote(resolutionNote);
-        req.setResolvedAt(LocalDateTime.now());
-        req.setAssignedTo(resolvedBy);
-        req.setLastActivityAt(LocalDateTime.now());
+        request.setStatus(MaintenanceStatus.RESOLVED);
+        request.setResolutionNote(resolutionNote);
+        request.setResolvedAt(LocalDateTime.now());
+        request.setAssignedTo(resolvedBy);
+        request.setLastActivityAt(LocalDateTime.now());
 
-        // Restore asset to available
-        req.getAsset().setStatus(AssetStatus.AVAILABLE);
-        assetRepository.save(req.getAsset());
+        request.getAsset().setStatus(AssetStatus.AVAILABLE);
+        assetRepository.save(request.getAsset());
 
-        MaintenanceRequest saved = maintenanceRepository.save(req);
+        MaintenanceRequest saved = maintenanceRepository.save(request);
+        Collection<User> recipients = visibleRecipients(saved);
         ticketRealtimeService.broadcastTicketChanged(
                 saved,
                 "TICKET_RESOLVED",
                 resolvedBy.getFullName() + " đã giải quyết ticket " + saved.getTicketCode() + ".",
-                recipients(saved)
+                recipients,
+                recipients
         );
         return saved;
     }
 
     public MaintenanceRequest assign(Long requestId, User assignee) {
-        MaintenanceRequest req = maintenanceRepository.findById(requestId)
+        MaintenanceRequest request = maintenanceRepository.findByIdForUpdate(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy yêu cầu"));
+        if (!OPEN_STATUSES.contains(request.getStatus())) {
+            throw new IllegalStateException("Chỉ có thể phân công ticket còn mở.");
+        }
 
-        req.setAssignedTo(assignee);
-        req.setAssignmentSource("MANUAL");
-        req.setLastActivityAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        List<TicketCandidateAssignment> assignments = candidateAssignmentRepository.findByTicketIdOrderByCreatedAtAscIdAsc(requestId);
+        Map<Long, TicketCandidateAssignment> indexedAssignments = new LinkedHashMap<>();
+        for (TicketCandidateAssignment assignment : assignments) {
+            indexedAssignments.put(assignment.getTechnician().getId(), assignment);
+        }
 
-        MaintenanceRequest saved = maintenanceRepository.save(req);
+        TicketCandidateAssignment assigneeAssignment = indexedAssignments.get(assignee.getId());
+        if (assigneeAssignment == null) {
+            assigneeAssignment = TicketCandidateAssignment.builder()
+                    .ticket(request)
+                    .technician(assignee)
+                    .status(TicketCandidateStatus.ACCEPTED)
+                    .assignmentSource("MANUAL_OVERRIDE")
+                    .acceptedAt(now)
+                    .build();
+            assignments.add(assigneeAssignment);
+        } else {
+            assigneeAssignment.setStatus(TicketCandidateStatus.ACCEPTED);
+            assigneeAssignment.setAssignmentSource("MANUAL_OVERRIDE");
+            assigneeAssignment.setAcceptedAt(now);
+            assigneeAssignment.setRevokedAt(null);
+        }
+
+        for (TicketCandidateAssignment assignment : assignments) {
+            if (assignee.getId().equals(assignment.getTechnician().getId())) {
+                continue;
+            }
+            if (assignment.getStatus() != TicketCandidateStatus.REVOKED) {
+                assignment.setStatus(TicketCandidateStatus.REVOKED);
+                assignment.setRevokedAt(now);
+            }
+        }
+
+        request.setAssignedTo(assignee);
+        request.setAssignmentSource("MANUAL_OVERRIDE");
+        request.setLastActivityAt(now);
+
+        candidateAssignmentRepository.saveAll(assignments);
+        MaintenanceRequest saved = maintenanceRepository.save(request);
+        Collection<User> visibleRecipients = visibleRecipients(saved);
+        Collection<User> refreshRecipients = refreshRecipients(saved, assignments);
         ticketRealtimeService.broadcastTicketChanged(
                 saved,
                 "TICKET_ASSIGNED",
                 "Ticket " + saved.getTicketCode() + " đã được giao cho " + assignee.getFullName() + ".",
-                recipients(saved)
-        );
-        return saved;
-    }
-
-    public MaintenanceRequest updateStatus(Long requestId, MaintenanceStatus status) {
-        MaintenanceRequest req = maintenanceRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy yêu cầu"));
-        validateStatusTransition(req, status, null);
-        req.setStatus(status);
-        req.setLastActivityAt(LocalDateTime.now());
-        if (status == MaintenanceStatus.RESOLVED && req.getResolvedAt() == null) {
-            req.setResolvedAt(LocalDateTime.now());
-            req.getAsset().setStatus(AssetStatus.AVAILABLE);
-            assetRepository.save(req.getAsset());
-        }
-        MaintenanceRequest saved = maintenanceRepository.save(req);
-        ticketRealtimeService.broadcastTicketChanged(
-                saved,
-                "TICKET_STATUS_CHANGED",
-                "Ticket " + saved.getTicketCode() + " đã chuyển sang " + status.getDisplayName() + ".",
-                recipients(saved)
+                visibleRecipients,
+                refreshRecipients
         );
         return saved;
     }
 
     public MaintenanceRequest updateStatus(Long requestId, MaintenanceStatus status, User actor) {
-        MaintenanceRequest req = maintenanceRepository.findById(requestId)
+        MaintenanceRequest request = maintenanceRepository.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy yêu cầu"));
-        validateStatusTransition(req, status, actor);
-        req.setStatus(status);
-        req.setLastActivityAt(LocalDateTime.now());
-        if (status == MaintenanceStatus.RESOLVED && req.getResolvedAt() == null) {
-            req.setResolvedAt(LocalDateTime.now());
-            req.getAsset().setStatus(AssetStatus.AVAILABLE);
-            assetRepository.save(req.getAsset());
+        validateStatusTransition(request, status, actor);
+        request.setStatus(status);
+        request.setLastActivityAt(LocalDateTime.now());
+        if (status == MaintenanceStatus.RESOLVED && request.getResolvedAt() == null) {
+            request.setResolvedAt(LocalDateTime.now());
+            request.getAsset().setStatus(AssetStatus.AVAILABLE);
+            assetRepository.save(request.getAsset());
         }
-        MaintenanceRequest saved = maintenanceRepository.save(req);
+        MaintenanceRequest saved = maintenanceRepository.save(request);
+        Collection<User> recipients = visibleRecipients(saved);
         ticketRealtimeService.broadcastTicketChanged(
                 saved,
                 "TICKET_STATUS_CHANGED",
                 "Ticket " + saved.getTicketCode() + " đã chuyển sang " + status.getDisplayName() + ".",
-                recipients(saved)
+                recipients,
+                recipients
         );
         return saved;
-    }
-
-    @Transactional(readOnly = true)
-    public Page<MaintenanceRequest> searchRequests(String keyword, MaintenanceStatus status, Pageable pageable) {
-        String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
-        return maintenanceRepository.searchRequests(kw, status, pageable);
     }
 
     @Transactional(readOnly = true)
@@ -175,14 +260,28 @@ public class MaintenanceService {
     }
 
     @Transactional(readOnly = true)
-    public Page<MaintenanceRequest> searchTickets(String keyword, MaintenanceStatus status, Long assigneeId, Long reporterId, Pageable pageable) {
-        String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
-        return maintenanceRepository.searchTicketApi(kw, status, assigneeId, reporterId, pageable);
+    public Page<MaintenanceRequest> searchTickets(String keyword,
+                                                  MaintenanceStatus status,
+                                                  Long viewerId,
+                                                  Long reporterId,
+                                                  Pageable pageable) {
+        String kw = (keyword != null && !keyword.isBlank()) ? "%" + keyword.trim() + "%" : null;
+        if (kw == null) {
+            return maintenanceRepository.searchTicketApi(status, viewerId, reporterId, TicketCandidateStatus.PENDING, pageable);
+        }
+        return maintenanceRepository.searchTicketApiByKeyword(
+                kw,
+                status,
+                viewerId,
+                reporterId,
+                TicketCandidateStatus.PENDING,
+                pageable
+        );
     }
 
     @Transactional(readOnly = true)
-    public List<MaintenanceRequest> findAssignedTickets(Long userId) {
-        return maintenanceRepository.findTop10ByAssignedToIdOrderByLastActivityAtDesc(userId);
+    public List<MaintenanceRequest> getOverdueTickets(Long viewerId, Long reporterId) {
+        return maintenanceRepository.findOverdueTicketsApi(OPEN_STATUSES, viewerId, reporterId, TicketCandidateStatus.PENDING);
     }
 
     @Transactional(readOnly = true)
@@ -201,32 +300,55 @@ public class MaintenanceService {
         if (ticket.getReportedBy() != null && user.getId().equals(ticket.getReportedBy().getId())) {
             return true;
         }
-        return ticket.getAssignedTo() != null && user.getId().equals(ticket.getAssignedTo().getId());
+        if (currentOwner(ticket, user)) {
+            return true;
+        }
+        return candidateAssignmentRepository.existsByTicketIdAndTechnicianIdAndStatus(
+                ticket.getId(),
+                user.getId(),
+                TicketCandidateStatus.PENDING
+        );
     }
 
-    public boolean canAcceptTicket(MaintenanceRequest ticket, User user) {
+    @Transactional(readOnly = true)
+    public boolean canClaimTicket(MaintenanceRequest ticket, User user) {
         return ticket != null
                 && user != null
-                && currentAssignee(ticket, user)
-                && MaintenanceStatus.PENDING.equals(ticket.getStatus());
+                && MaintenanceStatus.PENDING.equals(ticket.getStatus())
+                && ticket.getAssignedTo() == null
+                && candidateAssignmentRepository.existsByTicketIdAndTechnicianIdAndStatus(
+                        ticket.getId(),
+                        user.getId(),
+                        TicketCandidateStatus.PENDING
+                );
     }
 
     public boolean canResolveTicket(MaintenanceRequest ticket, User user) {
         if (ticket == null || user == null || !MaintenanceStatus.IN_PROGRESS.equals(ticket.getStatus())) {
             return false;
         }
-        return user.isAdmin() || currentAssignee(ticket, user);
+        return user.isAdmin() || currentOwner(ticket, user);
     }
 
     public boolean canCancelTicket(MaintenanceRequest ticket, User user) {
         return ticket != null
                 && user != null
                 && user.isAdmin()
-                && (MaintenanceStatus.PENDING.equals(ticket.getStatus()) || MaintenanceStatus.IN_PROGRESS.equals(ticket.getStatus()));
+                && OPEN_STATUSES.contains(ticket.getStatus());
     }
 
     public MaintenanceRequest save(MaintenanceRequest request) {
         return maintenanceRepository.save(request);
+    }
+
+    @Transactional(readOnly = true)
+    public List<User> findPendingCandidateUsers(Long ticketId) {
+        return candidateAssignmentRepository.findTechniciansByTicketIdAndStatus(ticketId, TicketCandidateStatus.PENDING);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TicketCandidateAssignment> findCandidateAssignments(Long ticketId) {
+        return candidateAssignmentRepository.findByTicketIdOrderByCreatedAtAscIdAsc(ticketId);
     }
 
     public List<MaintenanceRequest> markOverdueTickets() {
@@ -237,11 +359,13 @@ public class MaintenanceService {
                     && ticket.getSlaBreachedAt() == null) {
                 ticket.setSlaBreachedAt(LocalDateTime.now());
                 maintenanceRepository.save(ticket);
+                Collection<User> recipients = visibleRecipients(ticket);
                 ticketRealtimeService.broadcastTicketChanged(
                         ticket,
                         "TICKET_OVERDUE",
                         "Ticket " + ticket.getTicketCode() + " đã quá hạn SLA.",
-                        recipients(ticket)
+                        recipients,
+                        recipients
                 );
             }
         }
@@ -258,25 +382,50 @@ public class MaintenanceService {
         return now.plusHours(8);
     }
 
-    private Optional<User> pickAssignee(Asset asset, String issueType) {
+    private List<TicketCandidateAssignment> createCandidateAssignments(MaintenanceRequest ticket, Asset asset, String issueType) {
+        List<User> technicians = matchingTechnicians(asset, issueType);
+        if (technicians.isEmpty()) {
+            return List.of();
+        }
+
+        String assignmentSource = hasMatchingRules(asset, issueType) ? "AUTO_RULE" : "FALLBACK_ALL";
+        List<TicketCandidateAssignment> assignments = technicians.stream()
+                .map(technician -> TicketCandidateAssignment.builder()
+                        .ticket(ticket)
+                        .technician(technician)
+                        .status(TicketCandidateStatus.PENDING)
+                        .assignmentSource(assignmentSource)
+                        .build())
+                .toList();
+        return candidateAssignmentRepository.saveAll(assignments);
+    }
+
+    private boolean hasMatchingRules(Asset asset, String issueType) {
+        return coverageRuleRepository.findByIsActiveTrueOrderBySortOrderAscIdAsc().stream()
+                .filter(rule -> rule.getTechnician() != null && Boolean.TRUE.equals(rule.getTechnician().getIsActive()))
+                .anyMatch(rule -> matches(rule, asset, issueType));
+    }
+
+    private List<User> matchingTechnicians(Asset asset, String issueType) {
         List<TechnicianCoverageRule> rules = coverageRuleRepository.findByIsActiveTrueOrderBySortOrderAscIdAsc();
-        Optional<User> fromRules = rules.stream()
+        LinkedHashMap<Long, User> matched = rules.stream()
                 .filter(rule -> rule.getTechnician() != null && Boolean.TRUE.equals(rule.getTechnician().getIsActive()))
                 .filter(rule -> matches(rule, asset, issueType))
                 .sorted(Comparator
                         .comparingInt((TechnicianCoverageRule rule) -> matchRank(rule, asset, issueType))
                         .thenComparing(TechnicianCoverageRule::getSortOrder)
                         .thenComparing(TechnicianCoverageRule::getId))
-                .map(TechnicianCoverageRule::getTechnician)
-                .findFirst();
+                .collect(
+                        LinkedHashMap::new,
+                        (map, rule) -> map.putIfAbsent(rule.getTechnician().getId(), rule.getTechnician()),
+                        LinkedHashMap::putAll
+                );
 
-        if (fromRules.isPresent()) {
-            return fromRules;
+        if (!matched.isEmpty()) {
+            return new ArrayList<>(matched.values());
         }
 
-        return userRepository.findByRoleNameAndIsActiveTrueOrderByFullNameAsc("MAINTENANCE").stream()
-                .min(Comparator.comparingLong(user ->
-                        maintenanceRepository.countByAssignedToIdAndStatusIn(user.getId(), OPEN_STATUSES)));
+        return userRepository.findByRoleNameAndIsActiveTrueOrderByFullNameAsc("MAINTENANCE");
     }
 
     private boolean matches(TechnicianCoverageRule rule, Asset asset, String issueType) {
@@ -321,8 +470,10 @@ public class MaintenanceService {
             throw new IllegalStateException("Không thể chuyển ticket quay lại trạng thái chờ tiếp nhận.");
         }
         if (targetStatus == MaintenanceStatus.IN_PROGRESS) {
-            if (actor == null || !canAcceptTicket(ticket, actor)) {
-                throw new IllegalStateException("Chỉ kỹ thuật viên được giao mới có thể nhận việc.");
+            if (actor == null
+                    || !MaintenanceStatus.PENDING.equals(ticket.getStatus())
+                    || !currentOwner(ticket, actor)) {
+                throw new IllegalStateException("Chỉ kỹ thuật viên đang sở hữu ticket mới có thể bắt đầu xử lý.");
             }
             return;
         }
@@ -341,17 +492,39 @@ public class MaintenanceService {
         throw new IllegalStateException("Không hỗ trợ chuyển trạng thái này.");
     }
 
-    private boolean currentAssignee(MaintenanceRequest ticket, User user) {
+    private boolean currentOwner(MaintenanceRequest ticket, User user) {
         return ticket.getAssignedTo() != null
                 && user.getId() != null
                 && user.getId().equals(ticket.getAssignedTo().getId());
     }
 
-    private Collection<User> recipients(MaintenanceRequest ticket) {
+    public Collection<User> visibleRecipients(MaintenanceRequest ticket) {
         List<User> users = new ArrayList<>();
         users.add(ticket.getReportedBy());
         users.add(ticket.getAssignedTo());
+        users.addAll(findPendingCandidateUsers(ticket.getId()));
         users.addAll(userRepository.findByRoleNameAndIsActiveTrueOrderByFullNameAsc("ADMIN"));
-        return ticketRealtimeService.distinctUsers(users);
+        return distinctUsers(users);
+    }
+
+    public Collection<User> refreshRecipients(MaintenanceRequest ticket, Collection<TicketCandidateAssignment> assignments) {
+        List<User> users = new ArrayList<>();
+        users.add(ticket.getReportedBy());
+        users.add(ticket.getAssignedTo());
+        if (assignments != null) {
+            assignments.stream().map(TicketCandidateAssignment::getTechnician).forEach(users::add);
+        }
+        users.addAll(userRepository.findByRoleNameAndIsActiveTrueOrderByFullNameAsc("ADMIN"));
+        return distinctUsers(users);
+    }
+
+    private Collection<User> distinctUsers(Collection<User> users) {
+        LinkedHashMap<Long, User> indexed = new LinkedHashMap<>();
+        for (User user : users) {
+            if (user != null && user.getId() != null) {
+                indexed.putIfAbsent(user.getId(), user);
+            }
+        }
+        return new LinkedHashSet<>(indexed.values());
     }
 }

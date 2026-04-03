@@ -19,6 +19,9 @@ public class AssetCategory {
     @Column(nullable = false, unique = true, length = 100)
     private String name;
 
+    @Column(unique = true, length = 20)
+    private String code;
+
     @Column(length = 255)
     private String description;
 

@@ -1,6 +1,8 @@
 package com.dtoan.project.fptassetmanagement.service.impl;
 
 import com.dtoan.project.fptassetmanagement.entity.Asset;
+import com.dtoan.project.fptassetmanagement.entity.AssetUsage;
+import com.dtoan.project.fptassetmanagement.enums.UsageStatus;
 import com.dtoan.project.fptassetmanagement.repository.AssetRepository;
 import com.itextpdf.text.*;
 import com.itextpdf.text.Font;
@@ -22,6 +24,7 @@ import java.util.List;
 public class ExportService {
 
     private final AssetRepository assetRepository;
+    private final AssetUsageService assetUsageService;
 
     public byte[] exportAssetsToExcel(Long roomId) throws IOException {
         List<Asset> assets = roomId != null
@@ -170,5 +173,105 @@ public class ExportService {
         document.add(table);
         document.close();
         return out.toByteArray();
+    }
+
+    public byte[] exportUsagesToExcel(String keyword, UsageStatus status) throws IOException {
+        List<AssetUsage> usages = assetUsageService.findUsagesForExport(keyword, status);
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            XSSFSheet sheet = workbook.createSheet("Lich su muon tra");
+
+            XSSFCellStyle headerStyle = workbook.createCellStyle();
+            XSSFFont headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerFont.setFontHeightInPoints((short) 12);
+            headerFont.setColor(IndexedColors.WHITE.getIndex());
+            headerStyle.setFont(headerFont);
+            headerStyle.setFillForegroundColor(new XSSFColor(new byte[]{(byte) 0xFF, (byte) 0x6B, 0x00}, null));
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            headerStyle.setAlignment(HorizontalAlignment.CENTER);
+            headerStyle.setBorderBottom(BorderStyle.THIN);
+
+            XSSFCellStyle titleStyle = workbook.createCellStyle();
+            XSSFFont titleFont = workbook.createFont();
+            titleFont.setBold(true);
+            titleFont.setFontHeightInPoints((short) 16);
+            titleStyle.setFont(titleFont);
+            titleStyle.setAlignment(HorizontalAlignment.CENTER);
+
+            XSSFCellStyle altStyle = workbook.createCellStyle();
+            altStyle.setFillForegroundColor(new XSSFColor(new byte[]{(byte) 0xFF, (byte) 0xF3, (byte) 0xE0}, null));
+            altStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            Row titleRow = sheet.createRow(0);
+            Cell titleCell = titleRow.createCell(0);
+            titleCell.setCellValue("LICH SU CHECK-IN CHECK-OUT - FPT POLYTECHNIC DA NANG");
+            titleCell.setCellStyle(titleStyle);
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 9));
+
+            Row dateRow = sheet.createRow(1);
+            dateRow.createCell(0).setCellValue("Ngay xuat: " +
+                    java.time.LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
+
+            Row filterRow = sheet.createRow(2);
+            String keywordLabel = keyword != null && !keyword.isBlank() ? keyword.trim() : "Tat ca";
+            String statusLabel = status != null ? status.getDisplayName() : "Tat ca";
+            filterRow.createCell(0).setCellValue("Bo loc: tu khoa = " + keywordLabel + " | trang thai = " + statusLabel);
+
+            Row headerRow = sheet.createRow(4);
+            String[] headers = {
+                    "STT",
+                    "Ma QA",
+                    "Ten thiet bi",
+                    "Nguoi dung",
+                    "Phong di",
+                    "Phong den",
+                    "Check-in",
+                    "Check-out",
+                    "Trang thai",
+                    "Muc dich / Ghi chu"
+            };
+
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+                sheet.setColumnWidth(i, 20 * 256);
+            }
+
+            DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+            for (int i = 0; i < usages.size(); i++) {
+                AssetUsage usage = usages.get(i);
+                Row row = sheet.createRow(i + 5);
+                if (i % 2 == 1) {
+                    for (int j = 0; j < headers.length; j++) {
+                        row.createCell(j).setCellStyle(altStyle);
+                    }
+                }
+                row.createCell(0).setCellValue(i + 1);
+                row.createCell(1).setCellValue(usage.getAsset() != null ? usage.getAsset().getQaCode() : "");
+                row.createCell(2).setCellValue(usage.getAsset() != null ? usage.getAsset().getName() : "");
+                row.createCell(3).setCellValue(usage.getUser() != null ? usage.getUser().getFullName() : "");
+                row.createCell(4).setCellValue(usage.getRoomFrom() != null ? usage.getRoomFrom().getName() : "");
+                row.createCell(5).setCellValue(usage.getRoomTo() != null ? usage.getRoomTo().getName() : "");
+                row.createCell(6).setCellValue(usage.getCheckInTime() != null ? usage.getCheckInTime().format(dateTimeFormatter) : "");
+                row.createCell(7).setCellValue(usage.getCheckOutTime() != null ? usage.getCheckOutTime().format(dateTimeFormatter) : "");
+                row.createCell(8).setCellValue(usage.getStatus() != null ? usage.getStatus().getDisplayName() : "");
+                row.createCell(9).setCellValue(joinUsageNotes(usage));
+            }
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+        }
+    }
+
+    private String joinUsageNotes(AssetUsage usage) {
+        String purpose = usage.getPurpose() != null ? usage.getPurpose().trim() : "";
+        String note = usage.getNote() != null ? usage.getNote().trim() : "";
+        if (!purpose.isEmpty() && !note.isEmpty()) {
+            return purpose + " | " + note;
+        }
+        return !purpose.isEmpty() ? purpose : note;
     }
 }

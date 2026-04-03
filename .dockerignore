@@ -1,0 +1,11 @@
+.git
+.idea
+.vscode
+frontend
+target
+node_modules
+uploads
+*.sql
+.env
+frontend/.env
+frontend/dist

@@ -213,11 +213,15 @@ public class ApiMapper {
 
     public ApiDtos.TicketDetailDto toTicketDetailDto(MaintenanceRequest ticket,
                                                      List<ChatMessage> messages,
-                                                     List<TicketAttachment> attachments) {
+                                                     List<TicketAttachment> attachments,
+                                                     boolean claimable,
+                                                     List<User> candidateTechnicians) {
         return new ApiDtos.TicketDetailDto(
                 toTicketDto(ticket),
                 messages.stream().map(this::toChatMessageDto).toList(),
-                attachments.stream().map(this::toAttachmentDto).toList()
+                attachments.stream().map(this::toAttachmentDto).toList(),
+                claimable,
+                candidateTechnicians.stream().map(this::toUserDto).toList()
         );
     }
 }

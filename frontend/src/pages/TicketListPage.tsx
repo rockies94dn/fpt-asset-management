@@ -1,12 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { InlineQrScanner } from '../components/InlineQrScanner'
 import { formatDateTime } from '../components/format'
+import { statusClassName } from '../components/status'
+import { useRealtime } from '../hooks/useRealtime'
+import { useSession } from '../hooks/useSession'
 
 export function TicketListPage() {
   const navigate = useNavigate()
+  const session = useSession()
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const [keyword, setKeyword] = useState('')
@@ -26,10 +30,25 @@ export function TicketListPage() {
     enabled: Boolean(lookupCode),
     retry: false,
   })
+  const overdueTickets = useQuery({
+    queryKey: ['tickets', 'overdue'],
+    queryFn: () => api.overdueTickets(),
+  })
   const tickets = useQuery({
     queryKey: ['tickets', keyword],
     queryFn: () => api.tickets(new URLSearchParams(keyword ? { keyword } : {})),
   })
+  const subscriptions = useMemo(
+    () => ({
+      '/user/queue/tickets': () => {
+        void queryClient.invalidateQueries({ queryKey: ['tickets'] })
+        void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      },
+    }),
+    [queryClient],
+  )
+
+  useRealtime(Boolean(session.data?.authenticated), subscriptions)
 
   const createTicket = useMutation({
     mutationFn: async () => {
@@ -254,6 +273,61 @@ export function TicketListPage() {
         </div>
       </div> : null}
 
+      {!showForm && overdueTickets.data?.length ? (
+        <div className="card mt-4 mb-4 border-danger overflow-hidden" style={{ borderColor: '#dc3545' }}>
+          <div className="card-header bg-danger text-white border-danger" style={{ borderColor: '#dc3545' }}>
+            <span className="card-title text-white">
+              <i className="bi bi-exclamation-triangle"></i>
+              Ticket quá hạn SLA
+            </span>
+            <span className="badge bg-white text-danger">{overdueTickets.data.length} ticket</span>
+          </div>
+          <div className="card-body p-0">
+            <div className="table-responsive">
+              <table className="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>Ticket</th>
+                    <th>Thiết bị</th>
+                    <th>Ưu tiên</th>
+                    <th>Trạng thái</th>
+                    <th>Cập nhật</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {overdueTickets.data.map((ticket) => (
+                    <tr key={ticket.id}>
+                      <td>
+                        <div style={{ fontWeight: 700 }}>{ticket.ticketCode}</div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>{ticket.issueTypeLabel}</div>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{ticket.asset.name}</div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>{ticket.asset.qaCode}</div>
+                      </td>
+                      <td>{ticket.priorityLabel}</td>
+                      <td>
+                        <div className="d-flex flex-wrap gap-2">
+                          <span className={`badge-status badge-${statusClassName(ticket.status)}`}>{ticket.statusLabel}</span>
+                          <span className="badge-status badge-broken">Quá SLA</span>
+                        </div>
+                      </td>
+                      <td>{formatDateTime(ticket.lastActivityAt ?? ticket.reportedAt)}</td>
+                      <td className="react-table-actions">
+                        <Link className="btn btn-sm btn-outline-primary" to={`/tickets/${ticket.id}`}>
+                          Chi tiết
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {!showForm ? <div className="card mt-4">
         <div className="card-header">
           <span className="card-title">
@@ -308,7 +382,7 @@ export function TicketListPage() {
                       <td>{ticket.priorityLabel}</td>
                       <td>
                         <div className="d-flex flex-wrap gap-2">
-                          <span className={`badge-status badge-${ticket.status.toLowerCase()}`}>{ticket.statusLabel}</span>
+                          <span className={`badge-status badge-${statusClassName(ticket.status)}`}>{ticket.statusLabel}</span>
                           {ticket.overdue ? <span className="badge-status badge-broken">Quá SLA</span> : null}
                         </div>
                       </td>

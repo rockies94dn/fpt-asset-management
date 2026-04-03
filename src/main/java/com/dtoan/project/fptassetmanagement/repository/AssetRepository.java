@@ -23,15 +23,28 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
     List<Asset> findByIsActiveTrueOrderByNameAsc();
 
     @Query("SELECT a FROM Asset a WHERE a.isActive = true AND " +
-            "(:keyword IS NULL OR LOWER(a.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-            "LOWER(a.qaCode) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
             "(:status IS NULL OR a.status = :status) AND " +
             "(:categoryId IS NULL OR a.category.id = :categoryId) AND " +
             "(:roomId IS NULL OR a.room.id = :roomId) AND " +
             "(:attentionOnly = false OR " +
             "EXISTS (SELECT 1 FROM MaintenanceRequest m WHERE m.asset = a AND m.status IN :openStatuses))")
     Page<Asset> searchAssets(
-            @Param("keyword") String keyword,
+            @Param("status") AssetStatus status,
+            @Param("categoryId") Long categoryId,
+            @Param("roomId") Long roomId,
+            @Param("attentionOnly") boolean attentionOnly,
+            @Param("openStatuses") List<MaintenanceStatus> openStatuses,
+            Pageable pageable);
+
+    @Query("SELECT a FROM Asset a WHERE a.isActive = true AND " +
+            "(LOWER(a.name) LIKE LOWER(:keywordPattern) OR LOWER(a.qaCode) LIKE LOWER(:keywordPattern)) AND " +
+            "(:status IS NULL OR a.status = :status) AND " +
+            "(:categoryId IS NULL OR a.category.id = :categoryId) AND " +
+            "(:roomId IS NULL OR a.room.id = :roomId) AND " +
+            "(:attentionOnly = false OR " +
+            "EXISTS (SELECT 1 FROM MaintenanceRequest m WHERE m.asset = a AND m.status IN :openStatuses))")
+    Page<Asset> searchAssetsByKeyword(
+            @Param("keywordPattern") String keywordPattern,
             @Param("status") AssetStatus status,
             @Param("categoryId") Long categoryId,
             @Param("roomId") Long roomId,

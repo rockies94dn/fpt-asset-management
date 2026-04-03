@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/client'
+import { getAssetUsageDisabledReason } from '../components/assetUsage'
 import { StatusBadge } from '../components/StatusBadge'
 import { useSession } from '../hooks/useSession'
 
@@ -264,6 +265,8 @@ export function ScanPage() {
     )
   }
 
+  const usageDisabledReason = getAssetUsageDisabledReason(asset.data)
+
   return (
     <div className="login-wrapper">
       <div className="container py-5">
@@ -293,9 +296,15 @@ export function ScanPage() {
                     <Link className="btn btn-primary w-100" to={`/tickets?qaCode=${encodeURIComponent(asset.data.qaCode)}`}>
                       Báo hỏng thiết bị
                     </Link>
-                    <Link className="btn btn-outline-primary w-100" to={`/usages?qaCode=${encodeURIComponent(asset.data.qaCode)}`}>
-                      Check-in / mượn thiết bị
-                    </Link>
+                    {usageDisabledReason ? (
+                      <button className="btn btn-outline-secondary w-100" type="button" disabled title={usageDisabledReason}>
+                        Không thể check-in / mượn
+                      </button>
+                    ) : (
+                      <Link className="btn btn-outline-primary w-100" to={`/usages?qaCode=${encodeURIComponent(asset.data.qaCode)}`}>
+                        Check-in / mượn thiết bị
+                      </Link>
+                    )}
                   </>
                 ) : (
                   <Link className="btn btn-primary w-100" to="/login">

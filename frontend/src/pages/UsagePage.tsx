@@ -2,13 +2,24 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
+import { getAssetUsageDisabledReason } from '../components/assetUsage'
 import { InlineQrScanner } from '../components/InlineQrScanner'
 import { formatDateTime } from '../components/format'
+import { statusClassName } from '../components/status'
+import { apiUrl } from '../config/runtime'
+
+const usageStatusOptions = [
+  { value: '', label: 'Tất cả trạng thái' },
+  { value: 'ACTIVE', label: 'Đang sử dụng' },
+  { value: 'COMPLETED', label: 'Đã hoàn trả' },
+  { value: 'CANCELLED', label: 'Đã hủy' },
+]
 
 export function UsagePage() {
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const [keyword, setKeyword] = useState('')
+  const [status, setStatus] = useState('')
   const [showForm, setShowForm] = useState(searchParams.get('scanner') === '1' || Boolean(searchParams.get('qaCode')))
   const [scannerOpen, setScannerOpen] = useState(searchParams.get('scanner') === '1')
   const [qaCode, setQaCode] = useState('')
@@ -16,9 +27,17 @@ export function UsagePage() {
   const [roomToId, setRoomToId] = useState('')
   const [purpose, setPurpose] = useState('')
 
+  const usageFilters = new URLSearchParams()
+  if (keyword.trim()) {
+    usageFilters.set('keyword', keyword.trim())
+  }
+  if (status) {
+    usageFilters.set('status', status)
+  }
+
   const usages = useQuery({
-    queryKey: ['usages', keyword],
-    queryFn: () => api.usages(new URLSearchParams(keyword ? { keyword } : {})),
+    queryKey: ['usages', keyword, status],
+    queryFn: () => api.usages(usageFilters),
   })
   const assetMeta = useQuery({ queryKey: ['assets', 'meta'], queryFn: api.assetMeta })
   const previewAsset = useQuery({
@@ -27,6 +46,23 @@ export function UsagePage() {
     enabled: Boolean(lookupCode),
     retry: false,
   })
+  const normalizedQaCode = qaCode.trim()
+  const matchedPreviewAsset = previewAsset.data?.qaCode === normalizedQaCode ? previewAsset.data : null
+  const usageDisabledReason = getAssetUsageDisabledReason(matchedPreviewAsset)
+  const usageExportUrl = apiUrl(`/api/usages/export/excel${usageFilters.toString() ? `?${usageFilters.toString()}` : ''}`)
+
+  useEffect(() => {
+    if (!normalizedQaCode) {
+      setLookupCode('')
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setLookupCode(normalizedQaCode)
+    }, 250)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [normalizedQaCode])
 
   useEffect(() => {
     const scannedCode = searchParams.get('qaCode') ?? ''
@@ -134,13 +170,13 @@ export function UsagePage() {
                     value={qaCode}
                     onChange={(event) => setQaCode(event.target.value)}
                   />
-                  <button type="button" className="btn btn-outline-primary" onClick={() => setLookupCode(qaCode.trim())}>
+                  <button type="button" className="btn btn-outline-primary" onClick={() => setLookupCode(normalizedQaCode)}>
                     <i className="bi bi-search"></i>
                   </button>
                 </div>
               </div>
 
-              {previewAsset.data ? (
+              {matchedPreviewAsset ? (
                 <div className="mb-3 p-3 rounded-3" style={{ background: '#FFF3E0', border: '1px solid rgba(255,107,0,0.2)' }}>
                   <div className="d-flex align-items-center gap-3">
                     <div
@@ -157,19 +193,25 @@ export function UsagePage() {
                         boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                       }}
                     >
-                      <i className={`bi ${previewAsset.data.category?.icon ?? 'bi-box'}`}></i>
-                    </div>
+                        <i className={`bi ${matchedPreviewAsset.category?.icon ?? 'bi-box'}`}></i>
+                      </div>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: '14px' }}>{previewAsset.data.name}</div>
+                      <div style={{ fontWeight: 600, fontSize: '14px' }}>{matchedPreviewAsset.name}</div>
                       <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                        <span>{previewAsset.data.room?.name ?? 'Chưa có phòng'}</span>
+                        <span>{matchedPreviewAsset.room?.name ?? 'Chưa có phòng'}</span>
                         {' · '}
-                        <span className={`badge-status badge-${previewAsset.data.status.toLowerCase()}`} style={{ fontSize: '11px' }}>
-                          {previewAsset.data.statusLabel}
+                        <span className={`badge-status badge-${statusClassName(matchedPreviewAsset.status)}`} style={{ fontSize: '11px' }}>
+                          {matchedPreviewAsset.statusLabel}
                         </span>
                       </div>
                     </div>
                   </div>
+                </div>
+              ) : null}
+
+              {usageDisabledReason ? (
+                <div className="toast mb-3">
+                  {usageDisabledReason} Vui lòng chọn thiết bị khác hoặc báo hỏng nếu cần.
                 </div>
               ) : null}
 
@@ -199,7 +241,12 @@ export function UsagePage() {
 
               {checkIn.error ? <div className="toast mb-3">{checkIn.error.message}</div> : null}
 
-              <button className="btn btn-primary w-100 py-2" onClick={() => checkIn.mutate()} disabled={checkIn.isPending || !qaCode.trim()}>
+              <button
+                className="btn btn-primary w-100 py-2"
+                onClick={() => checkIn.mutate()}
+                disabled={checkIn.isPending || !qaCode.trim() || Boolean(usageDisabledReason)}
+                title={usageDisabledReason ?? undefined}
+              >
                 <i className="bi bi-box-arrow-in-right me-2"></i>
                 {checkIn.isPending ? 'Đang xác nhận...' : 'Xác nhận Check-in'}
               </button>
@@ -254,9 +301,9 @@ export function UsagePage() {
             Lịch sử mượn / trả
           </span>
         </div>
-        <div className="card-body pb-0">
+          <div className="card-body pb-0">
           <div className="row g-2 align-items-end mb-3">
-            <div className="col-md-8">
+            <div className="col-md-5">
               <label className="form-label mb-1">Tìm kiếm</label>
               <div className="input-group">
                 <span className="input-group-text bg-white">
@@ -269,6 +316,23 @@ export function UsagePage() {
                   onChange={(event) => setKeyword(event.target.value)}
                 />
               </div>
+            </div>
+            <div className="col-md-3">
+              <label className="form-label mb-1">Trạng thái</label>
+              <select className="form-select" value={status} onChange={(event) => setStatus(event.target.value)}>
+                {usageStatusOptions.map((option) => (
+                  <option key={option.value || 'ALL'} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-md-4">
+              <label className="form-label mb-1">Xuất dữ liệu</label>
+              <a className="btn btn-success w-100" href={usageExportUrl}>
+                <i className="bi bi-file-earmark-excel me-1"></i>
+                Xuất Excel theo bộ lọc
+              </a>
             </div>
           </div>
         </div>

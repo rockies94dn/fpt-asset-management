@@ -38,6 +38,11 @@ public class RegistrationService {
 
     @Transactional
     public void register(User rawUser, String confirmPassword) {
+        register(rawUser, confirmPassword, null);
+    }
+
+    @Transactional
+    public void register(User rawUser, String confirmPassword, String baseUrlOverride) {
         String username = valueOrBlank(rawUser.getUsername());
         String fullName = valueOrBlank(rawUser.getFullName());
         String email = normalizeEmail(rawUser.getEmail());
@@ -73,7 +78,7 @@ public class RegistrationService {
                 .build();
 
         userRepository.save(user);
-        sendVerificationEmail(user);
+        sendVerificationEmail(user, baseUrlOverride);
     }
 
     @Transactional
@@ -98,12 +103,12 @@ public class RegistrationService {
         return true;
     }
 
-    private void sendVerificationEmail(User user) {
+    private void sendVerificationEmail(User user, String baseUrlOverride) {
         if (mailFrom == null || mailFrom.isBlank() || mailFrom.endsWith("@fptasset.local")) {
             throw new IllegalStateException("Chưa cấu hình email gửi xác minh. Hãy thiết lập MAIL_USERNAME và MAIL_PASSWORD.");
         }
 
-        String verificationUrl = buildVerificationUrl(user.getEmailVerificationToken());
+        String verificationUrl = buildVerificationUrl(user.getEmailVerificationToken(), baseUrlOverride);
         String subject = "Xác minh email đăng ký - FPT Asset Management";
         String html = buildVerificationEmail(user, verificationUrl);
 
@@ -120,10 +125,14 @@ public class RegistrationService {
         }
     }
 
-    private String buildVerificationUrl(String token) {
-        String normalizedBaseUrl = appBaseUrl.endsWith("/")
-                ? appBaseUrl.substring(0, appBaseUrl.length() - 1)
-                : appBaseUrl;
+    private String buildVerificationUrl(String token, String baseUrlOverride) {
+        String baseUrl = valueOrBlank(baseUrlOverride);
+        if (baseUrl.isBlank()) {
+            baseUrl = valueOrBlank(appBaseUrl);
+        }
+        String normalizedBaseUrl = baseUrl.endsWith("/")
+                ? baseUrl.substring(0, baseUrl.length() - 1)
+                : baseUrl;
         return normalizedBaseUrl + "/auth/verify?token=" + token;
     }
 

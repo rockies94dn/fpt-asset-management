@@ -66,10 +66,7 @@ public class TicketChatService {
     }
 
     private List<User> recipients(MaintenanceRequest ticket, User sender) {
-        List<User> users = new ArrayList<>();
-        users.add(ticket.getReportedBy());
-        users.add(ticket.getAssignedTo());
-        users.addAll(userRepository.findByRoleNameAndIsActiveTrueOrderByFullNameAsc("ADMIN"));
+        List<User> users = new ArrayList<>(maintenanceService.visibleRecipients(ticket));
         users.removeIf(user -> user != null && sender != null && sender.getId() != null && sender.getId().equals(user.getId()));
         return users;
     }

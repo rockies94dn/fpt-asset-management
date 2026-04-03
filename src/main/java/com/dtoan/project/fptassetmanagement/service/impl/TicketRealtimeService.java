@@ -1,6 +1,5 @@
 package com.dtoan.project.fptassetmanagement.service.impl;
 
-import com.dtoan.project.fptassetmanagement.api.ApiMapper;
 import com.dtoan.project.fptassetmanagement.entity.ChatMessage;
 import com.dtoan.project.fptassetmanagement.entity.MaintenanceRequest;
 import com.dtoan.project.fptassetmanagement.entity.User;
@@ -9,7 +8,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Map;
 
 @Service
@@ -18,23 +16,20 @@ public class TicketRealtimeService {
 
     private final SimpMessagingTemplate messagingTemplate;
     private final NotificationService notificationService;
-    private final ApiMapper apiMapper;
 
     public void broadcastTicketChanged(MaintenanceRequest ticket,
                                        String eventType,
                                        String message,
-                                       Collection<User> recipients) {
-        messagingTemplate.convertAndSend(
-                "/topic/tickets/" + ticket.getId(),
-                Map.of(
-                        "eventType", eventType,
-                        "message", message,
-                        "ticket", apiMapper.toTicketDto(ticket)
-                )
-        );
+                                       Collection<User> notificationRecipients,
+                                       Collection<User> refreshRecipients) {
+        pushTicketRefresh(refreshRecipients, Map.of(
+                "eventType", eventType,
+                "ticketId", ticket.getId(),
+                "message", message
+        ));
 
         notificationService.pushNotification(
-                recipients,
+                notificationRecipients,
                 eventType.toLowerCase() + "-ticket-" + ticket.getId(),
                 "Ticket " + ticket.getTicketCode(),
                 message,
@@ -44,17 +39,21 @@ public class TicketRealtimeService {
         );
     }
 
+    public void broadcastTicketChanged(MaintenanceRequest ticket,
+                                       String eventType,
+                                       String message,
+                                       Collection<User> recipients) {
+        broadcastTicketChanged(ticket, eventType, message, recipients, recipients);
+    }
+
     public void broadcastChatMessage(MaintenanceRequest ticket,
                                      ChatMessage chatMessage,
                                      Collection<User> recipients) {
-        messagingTemplate.convertAndSend(
-                "/topic/tickets/" + ticket.getId(),
-                Map.of(
-                        "eventType", "CHAT_MESSAGE",
-                        "ticketId", ticket.getId(),
-                        "message", apiMapper.toChatMessageDto(chatMessage)
-                )
-        );
+        pushTicketRefresh(recipients, Map.of(
+                "eventType", "CHAT_MESSAGE",
+                "ticketId", ticket.getId(),
+                "message", chatMessage.getMessage()
+        ));
 
         notificationService.pushNotification(
                 recipients,
@@ -67,21 +66,23 @@ public class TicketRealtimeService {
         );
     }
 
-    public Collection<User> distinctUsers(Collection<User> users) {
-        Map<Long, User> indexed = new java.util.LinkedHashMap<>();
-        for (User user : users) {
-            if (user != null && user.getId() != null) {
-                indexed.putIfAbsent(user.getId(), user);
-            }
+    private void pushTicketRefresh(Collection<User> recipients, Map<String, Object> payload) {
+        if (recipients == null) {
+            return;
         }
-        return new HashSet<>(indexed.values());
+        for (User user : recipients) {
+            if (user == null || user.getUsername() == null || user.getUsername().isBlank()) {
+                continue;
+            }
+            messagingTemplate.convertAndSendToUser(user.getUsername(), "/queue/tickets", payload);
+        }
     }
 
     private String toneForEvent(String eventType) {
         return switch (eventType) {
             case "TICKET_OVERDUE" -> "danger";
             case "TICKET_RESOLVED" -> "success";
-            case "TICKET_ASSIGNED" -> "warning";
+            case "TICKET_ASSIGNED", "TICKET_CLAIMED" -> "warning";
             default -> "info";
         };
     }

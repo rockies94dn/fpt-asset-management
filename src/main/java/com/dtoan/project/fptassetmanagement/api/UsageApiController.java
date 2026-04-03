@@ -10,12 +10,19 @@ import com.dtoan.project.fptassetmanagement.repository.RoomRepository;
 import com.dtoan.project.fptassetmanagement.service.AssetService;
 import com.dtoan.project.fptassetmanagement.service.impl.AssetUsageService;
 import com.dtoan.project.fptassetmanagement.service.impl.CurrentUserService;
+import com.dtoan.project.fptassetmanagement.service.impl.ExportService;
 import com.dtoan.project.fptassetmanagement.service.impl.NotificationService;
 import com.dtoan.project.fptassetmanagement.service.impl.RoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 @RestController
 @RequestMapping("/api/usages")
@@ -28,6 +35,7 @@ public class UsageApiController {
     private final RoomService roomService;
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
+    private final ExportService exportService;
     private final ApiMapper apiMapper;
 
     @GetMapping
@@ -38,6 +46,18 @@ public class UsageApiController {
                 assetUsageService.searchUsages(keyword, status, PageRequest.of(page, 15)),
                 apiMapper::toUsageDto
         );
+    }
+
+    @GetMapping("/export/excel")
+    public ResponseEntity<byte[]> exportExcel(@RequestParam(required = false) String keyword,
+                                              @RequestParam(required = false) UsageStatus status) throws Exception {
+        byte[] data = exportService.exportUsagesToExcel(keyword, status);
+        String filename = "LichSuMuonTra_" +
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmm")) + ".xlsx";
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(data);
     }
 
     @PostMapping("/checkin")

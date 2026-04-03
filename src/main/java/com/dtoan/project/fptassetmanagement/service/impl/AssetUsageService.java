@@ -9,12 +9,13 @@ import com.dtoan.project.fptassetmanagement.enums.UsageStatus;
 import com.dtoan.project.fptassetmanagement.repository.AssetRepository;
 import com.dtoan.project.fptassetmanagement.repository.AssetUsageRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -67,8 +68,16 @@ public class AssetUsageService {
 
     @Transactional(readOnly = true)
     public Page<AssetUsage> searchUsages(String keyword, UsageStatus status, Pageable pageable) {
-        String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
-        return usageRepository.searchUsages(kw, status, pageable);
+        String kw = (keyword != null && !keyword.isBlank()) ? "%" + keyword.trim() + "%" : null;
+        if (kw == null) {
+            return usageRepository.searchUsages(status, pageable);
+        }
+        return usageRepository.searchUsagesByKeyword(kw, status, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AssetUsage> findUsagesForExport(String keyword, UsageStatus status) {
+        return searchUsages(keyword, status, Pageable.unpaged()).getContent();
     }
 
     @Transactional(readOnly = true)

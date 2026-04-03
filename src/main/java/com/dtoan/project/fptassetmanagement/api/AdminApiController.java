@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -96,11 +97,15 @@ public class AdminApiController {
 
     @PostMapping("/rooms")
     public ApiDtos.RoomDto createRoom(@RequestBody ApiDtos.RoomUpsertRequest request) {
-        if (roomRepository.existsByCode(request.code())) {
+        String normalizedCode = roomService.normalizeRoomCode(request.code());
+        if (normalizedCode.isBlank()) {
+            throw new IllegalArgumentException("Mã phòng không được để trống.");
+        }
+        if (roomRepository.existsByNormalizedCode(normalizedCode)) {
             throw new IllegalArgumentException("Mã phòng đã tồn tại.");
         }
         Room room = Room.builder()
-                .code(request.code())
+                .code(normalizedCode)
                 .name(request.name())
                 .building(request.building())
                 .floor(request.floor())
@@ -131,14 +136,26 @@ public class AdminApiController {
 
     @PostMapping("/coverage-rules")
     public ApiDtos.CoverageRuleDto createCoverageRule(@RequestBody ApiDtos.CoverageRuleSaveRequest request) {
+        User technician = userRepository.findById(request.technicianId())
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy kỹ thuật viên."));
+        var category = request.categoryId() != null ? categoryRepository.findById(request.categoryId())
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy loại thiết bị.")) : null;
+        String issueType = normalizeIssueType(request.issueType());
+        TechnicianCoverageRule conflictedRule = findCoverageConflict(
+                request.technicianId(),
+                request.categoryId(),
+                null,
+                issueType
+        );
+        if (conflictedRule != null) {
+            throw new IllegalArgumentException("Quy tắc phân công này bị trùng hoặc bị bao trùm bởi dữ liệu hiện có: "
+                    + describeCoverageRule(conflictedRule));
+        }
         TechnicianCoverageRule rule = TechnicianCoverageRule.builder()
-                .technician(userRepository.findById(request.technicianId())
-                        .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy kỹ thuật viên.")))
-                .room(request.roomId() != null ? roomRepository.findById(request.roomId())
-                        .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng.")) : null)
-                .category(request.categoryId() != null ? categoryRepository.findById(request.categoryId())
-                        .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy loại thiết bị.")) : null)
-                .issueType(request.issueType())
+                .technician(technician)
+                .room(null)
+                .category(category)
+                .issueType(issueType)
                 .sortOrder(request.sortOrder() == null ? 0 : request.sortOrder())
                 .isActive(request.active() == null || request.active())
                 .build();
@@ -157,5 +174,55 @@ public class AdminApiController {
 
     private String normalizeEmail(String value) {
         return valueOrBlank(value).toLowerCase();
+    }
+
+    private String normalizeIssueType(String value) {
+        String normalized = valueOrBlank(value).toUpperCase();
+        return normalized.isBlank() ? null : normalized;
+    }
+
+    private TechnicianCoverageRule findCoverageConflict(Long technicianId,
+                                                        Long categoryId,
+                                                        Long roomId,
+                                                        String issueType) {
+        return coverageRuleRepository.findByTechnicianIdAndIsActiveTrueOrderBySortOrderAscIdAsc(technicianId).stream()
+                .filter(rule -> rulesConflict(rule, categoryId, roomId, issueType))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private boolean rulesConflict(TechnicianCoverageRule existingRule,
+                                  Long newCategoryId,
+                                  Long newRoomId,
+                                  String newIssueType) {
+        Long existingCategoryId = existingRule.getCategory() != null ? existingRule.getCategory().getId() : null;
+        Long existingRoomId = existingRule.getRoom() != null ? existingRule.getRoom().getId() : null;
+        String existingIssueType = normalizeIssueType(existingRule.getIssueType());
+
+        return scopeCovers(existingCategoryId, newCategoryId)
+                && scopeCovers(existingRoomId, newRoomId)
+                && issueTypeCovers(existingIssueType, newIssueType)
+                || scopeCovers(newCategoryId, existingCategoryId)
+                && scopeCovers(newRoomId, existingRoomId)
+                && issueTypeCovers(newIssueType, existingIssueType);
+    }
+
+    private boolean scopeCovers(Long scopeId, Long targetId) {
+        return scopeId == null || Objects.equals(scopeId, targetId);
+    }
+
+    private boolean issueTypeCovers(String scopeIssueType, String targetIssueType) {
+        return scopeIssueType == null || Objects.equals(scopeIssueType, targetIssueType);
+    }
+
+    private String describeCoverageRule(TechnicianCoverageRule rule) {
+        String categoryLabel = rule.getCategory() != null ? rule.getCategory().getName() : "Tất cả category";
+        String issueTypeLabel = switch (normalizeIssueType(rule.getIssueType())) {
+            case "BROKEN" -> "Hỏng";
+            case "MAINTENANCE" -> "Bảo trì";
+            case "UPGRADE" -> "Nâng cấp";
+            default -> "Tất cả loại ticket";
+        };
+        return rule.getTechnician().getFullName() + " / " + categoryLabel + " / " + issueTypeLabel;
     }
 }

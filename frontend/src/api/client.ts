@@ -12,6 +12,7 @@ import type {
   Room,
   User,
 } from '../types/api'
+import { apiUrl } from '../config/runtime'
 
 type RequestOptions = RequestInit & {
   bodyJson?: unknown
@@ -30,7 +31,7 @@ export function setCsrfToken(token: string | null) {
 async function ensureCsrfToken() {
   if (csrfToken) return csrfToken
 
-  const response = await fetch('/api/me', {
+  const response = await fetch(apiUrl('/api/me'), {
     method: 'GET',
     credentials: 'include',
     headers: jsonHeaders,
@@ -68,7 +69,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     headers.set('X-XSRF-TOKEN', csrfToken)
   }
 
-  const response = await fetch(path, {
+  const response = await fetch(apiUrl(path), {
     credentials: 'include',
     ...options,
     headers,
@@ -103,6 +104,14 @@ export const api = {
   me: () => request<MeResponse>('/api/me'),
   login: (payload: { username: string; password: string }) =>
     request<MeResponse>('/api/auth/login', { method: 'POST', bodyJson: payload }),
+  register: (payload: {
+    fullName: string
+    username: string
+    email: string
+    phone: string
+    password: string
+    confirmPassword: string
+  }) => request<{ message: string }>('/api/auth/register', { method: 'POST', bodyJson: payload }),
   logout: () => request<{ message: string }>('/api/auth/logout', { method: 'POST' }),
   forgotPassword: (email: string) =>
     request<{ message: string }>('/api/auth/forgot-password', { method: 'POST', bodyJson: { email } }),
@@ -125,6 +134,7 @@ export const api = {
   checkIn: (payload: unknown) => request<Usage>('/api/usages/checkin', { method: 'POST', bodyJson: payload }),
   checkOut: (id: number, payload: unknown) => request<Usage>(`/api/usages/${id}/checkout`, { method: 'POST', bodyJson: payload }),
   tickets: (params: URLSearchParams) => request<PageDto<Ticket>>(`/api/tickets?${params.toString()}`),
+  overdueTickets: () => request<Ticket[]>('/api/tickets/overdue'),
   ticket: (id: string) => request<TicketDetail>(`/api/tickets/${id}`),
   ticketMeta: () =>
     request<{
@@ -135,7 +145,7 @@ export const api = {
     }>('/api/tickets/meta'),
   createTicket: async (formData: FormData) => {
     const token = await ensureCsrfToken()
-    const response = await fetch('/api/tickets', {
+    const response = await fetch(apiUrl('/api/tickets'), {
       method: 'POST',
       credentials: 'include',
       headers: { 'X-XSRF-TOKEN': token },
@@ -149,7 +159,7 @@ export const api = {
   },
   uploadTicketAttachment: async (ticketId: number, formData: FormData) => {
     const token = await ensureCsrfToken()
-    const response = await fetch(`/api/tickets/${ticketId}/attachments`, {
+    const response = await fetch(apiUrl(`/api/tickets/${ticketId}/attachments`), {
       method: 'POST',
       credentials: 'include',
       headers: { 'X-XSRF-TOKEN': token },
@@ -163,6 +173,7 @@ export const api = {
   },
   assignTicket: (id: number, assigneeId: number) =>
     request<Ticket>(`/api/tickets/${id}/assign`, { method: 'POST', bodyJson: { assigneeId } }),
+  claimTicket: (id: number) => request<Ticket>(`/api/tickets/${id}/claim`, { method: 'POST' }),
   updateTicketStatus: (id: number, status: string) =>
     request<Ticket>(`/api/tickets/${id}/status`, { method: 'POST', bodyJson: { status } }),
   resolveTicket: (id: number, resolutionNote: string) =>

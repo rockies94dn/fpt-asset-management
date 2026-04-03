@@ -6,14 +6,22 @@ import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+
 @Component
 @RequiredArgsConstructor
 public class AuditLogSchemaInitializer {
 
     private final JdbcTemplate jdbcTemplate;
+    private final DataSource dataSource;
 
     @PostConstruct
     public void ensureUnicodeAuditLogSummary() {
+        if (!isSqlServer()) {
+            return;
+        }
+
         jdbcTemplate.execute("""
                 IF EXISTS (
                     SELECT 1
@@ -26,5 +34,14 @@ public class AuditLogSchemaInitializer {
                     ALTER TABLE audit_logs ALTER COLUMN summary NVARCHAR(500) NOT NULL;
                 END
                 """);
+    }
+
+    private boolean isSqlServer() {
+        try (Connection connection = dataSource.getConnection()) {
+            String productName = connection.getMetaData().getDatabaseProductName();
+            return productName != null && productName.toLowerCase().contains("sql server");
+        } catch (Exception exception) {
+            return false;
+        }
     }
 }

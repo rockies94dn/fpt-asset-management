@@ -15,6 +15,7 @@ export function LoginPage() {
   const searchParams = new URLSearchParams(location.search)
   const verified = searchParams.get('verified')
   const reset = searchParams.get('reset')
+  const registered = searchParams.get('registered')
 
   useEffect(() => {
     document.body.classList.add('login-wrapper')
@@ -133,6 +134,13 @@ export function LoginPage() {
               </div>
             ) : null}
 
+            {registered === 'success' ? (
+              <div className="alert alert-success py-2 px-3 mb-3" style={{ borderRadius: '10px', fontSize: '13px' }}>
+                <i className="bi bi-envelope-check me-2"></i>
+                Đăng ký thành công. Hãy kiểm tra email để xác minh tài khoản trước khi đăng nhập.
+              </div>
+            ) : null}
+
             <form onSubmit={handleSubmit}>
               <div className="mb-3">
                 <label className="form-label">Tên đăng nhập</label>
@@ -181,8 +189,10 @@ export function LoginPage() {
                   <Link to="/forgot-password" style={{ color: '#FF6B00', fontWeight: 600, textDecoration: 'none' }}>
                     Quên mật khẩu?
                   </Link>
-                  {' '}
-                  Liên hệ quản trị viên nếu bạn cần tạo tài khoản mới.
+                  {' · '}
+                  <Link to="/register" style={{ color: '#FF6B00', fontWeight: 600, textDecoration: 'none' }}>
+                    Đăng ký tài khoản mới
+                  </Link>
                 </div>
               </div>
 
@@ -191,11 +201,6 @@ export function LoginPage() {
                 {login.isPending ? 'Đang đăng nhập...' : 'Đăng nhập'}
               </button>
             </form>
-
-            <hr style={{ margin: '20px 0', borderColor: '#f0f0f0' }} />
-            <div className="text-center" style={{ fontSize: '13px', color: '#6b7280' }}>
-              Hệ thống hiện dùng giao diện React SPA, không còn phụ thuộc vào Thymeleaf.
-            </div>
           </div>
         </div>
       </div>

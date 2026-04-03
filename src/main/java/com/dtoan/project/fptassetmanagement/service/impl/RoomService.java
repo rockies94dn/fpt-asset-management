@@ -2,6 +2,7 @@ package com.dtoan.project.fptassetmanagement.service.impl;
 
 import com.dtoan.project.fptassetmanagement.entity.Room;
 import com.dtoan.project.fptassetmanagement.repository.RoomRepository;
+import com.dtoan.project.fptassetmanagement.util.CodeNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +23,7 @@ public class RoomService {
     }
 
     public Room getRoomByCode(String code) {
-        return roomRepository.findByCode(code);
+        return roomRepository.findByNormalizedCode(normalizeRoomCode(code)).orElse(null);
     }
 
     @Transactional(readOnly = true)
@@ -34,7 +35,7 @@ public class RoomService {
     }
 
     public boolean isStoreRoom(Room room) {
-        return room != null && STORE_ROOM_CODE.equalsIgnoreCase(room.getCode());
+        return room != null && STORE_ROOM_CODE.equals(normalizeRoomCode(room.getCode()));
     }
 
     public boolean isStoreRoomId(Long roomId) {
@@ -48,8 +49,9 @@ public class RoomService {
 
     @Transactional
     public Room getOrCreateStoreRoom() {
-        Room existingRoom = roomRepository.findByCode(STORE_ROOM_CODE);
+        Room existingRoom = roomRepository.findByNormalizedCode(STORE_ROOM_CODE).orElse(null);
         if (existingRoom != null) {
+            existingRoom.setCode(STORE_ROOM_CODE);
             if (!Boolean.TRUE.equals(existingRoom.getIsActive())) {
                 existingRoom.setIsActive(true);
                 return roomRepository.save(existingRoom);
@@ -65,6 +67,10 @@ public class RoomService {
                 .build();
 
         return roomRepository.save(storeRoom);
+    }
+
+    public String normalizeRoomCode(String value) {
+        return CodeNormalizer.normalizeRoomCode(value);
     }
 }
 

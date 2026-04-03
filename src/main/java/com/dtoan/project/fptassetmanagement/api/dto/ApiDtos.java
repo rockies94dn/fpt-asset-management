@@ -13,6 +13,16 @@ public final class ApiDtos {
     public record AuthRequest(String username, String password) {
     }
 
+    public record RegisterRequest(
+            String fullName,
+            String username,
+            String email,
+            String phone,
+            String password,
+            String confirmPassword
+    ) {
+    }
+
     public record ForgotPasswordRequest(String email) {
     }
 
@@ -154,7 +164,9 @@ public final class ApiDtos {
     public record TicketDetailDto(
             TicketDto ticket,
             List<ChatMessageDto> messages,
-            List<TicketAttachmentDto> attachments
+            List<TicketAttachmentDto> attachments,
+            boolean claimable,
+            List<UserDto> candidateTechnicians
     ) {
     }
 

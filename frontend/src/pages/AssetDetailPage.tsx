@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api/client'
+import { getAssetUsageDisabledReason } from '../components/assetUsage'
 import { formatDate, formatMoney } from '../components/format'
+import { statusClassName } from '../components/status'
 
 export function AssetDetailPage() {
   const { assetId = '' } = useParams()
@@ -12,6 +14,10 @@ export function AssetDetailPage() {
 
   const current = asset.data.asset
   const maintenanceHistory = asset.data.maintenanceHistory
+  const usageDisabledReason = getAssetUsageDisabledReason(current)
+  const reportBrokenDisabledReason = current.status === 'BROKEN'
+    ? 'Thiết bị đang ở trạng thái hỏng, không thể tạo thêm báo hỏng.'
+    : null
 
   return (
     <>
@@ -59,7 +65,7 @@ export function AssetDetailPage() {
                         : '1px solid rgba(100,116,139,0.2)',
             }}
           >
-            <span className={`badge-status badge-${current.status.toLowerCase()}`} style={{ fontSize: '14px', padding: '8px 16px' }}>
+            <span className={`badge-status badge-${statusClassName(current.status)}`} style={{ fontSize: '14px', padding: '8px 16px' }}>
               <i className="bi bi-circle-fill" style={{ fontSize: '8px' }}></i>
               <span>{current.statusLabel}</span>
             </span>
@@ -151,19 +157,31 @@ export function AssetDetailPage() {
           </div>
 
           <div className="row g-2">
-            {current.status === 'AVAILABLE' ? (
-              <div className="col-sm-4">
+            <div className="col-sm-4">
+              {usageDisabledReason ? (
+                <button className="btn btn-secondary w-100" type="button" disabled title={usageDisabledReason}>
+                  <i className="bi bi-slash-circle me-1"></i>
+                  Không thể check-in
+                </button>
+              ) : (
                 <Link className="btn btn-success w-100" to={`/usages?qaCode=${encodeURIComponent(current.qaCode)}`}>
                   <i className="bi bi-box-arrow-in-right me-1"></i>
                   Check-in
                 </Link>
-              </div>
-            ) : null}
+              )}
+            </div>
             <div className="col-sm-4">
-              <Link className="btn btn-warning w-100" to={`/tickets?qaCode=${encodeURIComponent(current.qaCode)}`}>
-                <i className="bi bi-tools me-1"></i>
-                Báo hỏng
-              </Link>
+              {reportBrokenDisabledReason ? (
+                <button className="btn btn-warning w-100" type="button" disabled title={reportBrokenDisabledReason}>
+                  <i className="bi bi-tools me-1"></i>
+                  Báo hỏng
+                </button>
+              ) : (
+                <Link className="btn btn-warning w-100" to={`/tickets?qaCode=${encodeURIComponent(current.qaCode)}`}>
+                  <i className="bi bi-tools me-1"></i>
+                  Báo hỏng
+                </Link>
+              )}
             </div>
             <div className="col-sm-4">
               <Link className="btn btn-outline-primary w-100" to={`/assets/${current.id}/edit`}>
@@ -200,7 +218,7 @@ export function AssetDetailPage() {
                             <div style={{ fontSize: '13px', color: '#6b7280' }}>{item.issueTypeLabel}</div>
                           </div>
                           <div className="d-flex flex-wrap gap-2">
-                            <span className={`badge-status badge-${item.status.toLowerCase()}`}>{item.statusLabel}</span>
+                            <span className={`badge-status badge-${statusClassName(item.status)}`}>{item.statusLabel}</span>
                             {item.overdue ? <span className="badge-status badge-broken">Quá SLA</span> : null}
                           </div>
                         </div>

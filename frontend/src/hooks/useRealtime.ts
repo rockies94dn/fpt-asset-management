@@ -1,6 +1,7 @@
 import { Client } from '@stomp/stompjs'
 import SockJS from 'sockjs-client'
 import { useEffect, useMemo, useRef } from 'react'
+import { webSocketUrl } from '../config/runtime'
 
 type SubscriptionMap = Record<string, (body: unknown) => void>
 
@@ -21,7 +22,7 @@ export function useRealtime(enabled: boolean, subscriptions: SubscriptionMap) {
     }
 
     const client = new Client({
-      webSocketFactory: () => new SockJS('/ws'),
+      webSocketFactory: () => new SockJS(webSocketUrl('/ws')),
       reconnectDelay: 4000,
     })
 
